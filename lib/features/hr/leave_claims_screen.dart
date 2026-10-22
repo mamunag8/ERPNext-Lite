@@ -20,6 +20,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
   final ImagePicker _imagePicker = ImagePicker();
 
   bool _loading = false;
+  List<Map<String, dynamic>> _employees = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _leaves = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _leaveAllocations = <Map<String, dynamic>>[];
   List<String> _leaveTypes = <String>[
@@ -58,7 +59,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
     _tabController = TabController(
       length: 3,
       vsync: this,
-      initialIndex: widget.initialTab,
+      initialIndex: widget.initialTab.clamp(0, 2),
     );
     _loadAllData();
   }
@@ -69,10 +70,49 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
     super.dispose();
   }
 
+  List<Map<String, dynamic>> get _effectiveEmployees {
+    if (_employees.isNotEmpty) {
+      return _employees;
+    }
+    final UserSession? session = ErpApiClient.instance.session;
+    return <Map<String, dynamic>>[
+      <String, dynamic>{
+        'name': session?.employeeId.isNotEmpty == true
+            ? session!.employeeId
+            : 'HR-EMP-00001',
+        'employee_name': session?.employeeName.isNotEmpty == true
+            ? session!.employeeName
+            : (session?.fullName ?? 'Current Employee'),
+        'department': session?.department ?? 'Operations - DIBL',
+        'company': session?.company ?? 'Drip Irrigation BD Ltd',
+      },
+    ];
+  }
+
   Future<void> _loadAllData() async {
     setState(() {
       _loading = true;
     });
+
+    try {
+      final List<Map<String, dynamic>> empList = await ErpApiClient.instance
+          .getList(
+            'Employee',
+            fields: <String>[
+              'name',
+              'employee_name',
+              'department',
+              'designation',
+              'company',
+            ],
+            filters: <String, dynamic>{'status': 'Active'},
+            orderBy: 'employee_name asc',
+            limitPageLength: 200,
+          );
+      if (mounted && empList.isNotEmpty) {
+        setState(() => _employees = empList);
+      }
+    } catch (_) {}
 
     try {
       final List<Map<String, dynamic>> leaveList = await ErpApiClient.instance
@@ -89,7 +129,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
               'status',
               'description',
             ],
-            limitPageLength: 40,
+            limitPageLength: 50,
           );
       if (mounted) {
         setState(() => _leaves = leaveList);
@@ -102,13 +142,14 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
             'Leave Allocation',
             fields: <String>[
               'name',
+              'employee',
               'employee_name',
               'leave_type',
               'total_leaves_allocated',
               'from_date',
               'to_date',
             ],
-            limitPageLength: 20,
+            limitPageLength: 30,
           );
       final List<Map<String, dynamic>> ltDocs = await ErpApiClient.instance
           .getList('Leave Type', fields: <String>['name'], limitPageLength: 20);
@@ -200,7 +241,10 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
       await ErpApiClient.instance.updateDoc(
         'Leave Application',
         docName,
-        <String, dynamic>{'status': newStatus},
+        <String, dynamic>{
+          'status': newStatus,
+          if (newStatus == 'Approved') 'docstatus': 1,
+        },
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -209,10 +253,25 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
       }
       await _loadAllData();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ErpApiClient.formatErrorMessage(e))),
+      // Fallback without docstatus=1 if workflow only updates status field
+      try {
+        await ErpApiClient.instance.updateDoc(
+          'Leave Application',
+          docName,
+          <String, dynamic>{'status': newStatus},
         );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Leave Application $docName → $newStatus')),
+          );
+        }
+        await _loadAllData();
+      } catch (inner) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(ErpApiClient.formatErrorMessage(inner))),
+          );
+        }
       }
     }
   }
@@ -239,8 +298,214 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
     }
   }
 
+  Future<void> _showAllocateLeaveSheet() async {
+    final UserSession? session = ErpApiClient.instance.session;
+    final List<Map<String, dynamic>> emps = _effectiveEmployees;
+    String selectedEmp = session?.employeeId.isNotEmpty == true
+        ? session!.employeeId
+        : (emps.first['name'] ?? '').toString();
+    if (!emps.any((Map<String, dynamic> e) => e['name'] == selectedEmp)) {
+      selectedEmp = (emps.first['name'] ?? '').toString();
+    }
+    String selectedLeaveType = _leaveTypes.first;
+    DateTime fromDate = DateTime(DateTime.now().year, 1, 1);
+    DateTime toDate = DateTime(DateTime.now().year, 12, 31);
+    final TextEditingController daysCtrl = TextEditingController(text: '14');
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 8,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const Text(
+                      'New Leave Allocation',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedEmp,
+                      decoration: const InputDecoration(
+                        labelText: 'Employee',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: emps
+                          .map(
+                            (
+                              Map<String, dynamic> e,
+                            ) => DropdownMenuItem<String>(
+                              value: (e['name'] ?? '').toString(),
+                              child: Text(
+                                '${e['employee_name'] ?? e['name']} (${e['name']})',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (String? v) {
+                        if (v != null) {
+                          setModalState(() => selectedEmp = v);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedLeaveType,
+                      decoration: const InputDecoration(
+                        labelText: 'Leave Type',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: _leaveTypes
+                          .map(
+                            (String t) => DropdownMenuItem<String>(
+                              value: t,
+                              child: Text(t),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (String? v) {
+                        if (v != null) {
+                          setModalState(() => selectedLeaveType = v);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: daysCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'New Leaves Allocated (Days)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.date_range, size: 16),
+                            label: Text(
+                              'From: ${DateFormat('yyyy-MM-dd').format(fromDate)}',
+                            ),
+                            onPressed: () async {
+                              final DateTime? p = await showDatePicker(
+                                context: context,
+                                initialDate: fromDate,
+                                firstDate: DateTime(2023),
+                                lastDate: DateTime(2030),
+                              );
+                              if (p != null) {
+                                setModalState(() => fromDate = p);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.event, size: 16),
+                            label: Text(
+                              'To: ${DateFormat('yyyy-MM-dd').format(toDate)}',
+                            ),
+                            onPressed: () async {
+                              final DateTime? p = await showDatePicker(
+                                context: context,
+                                initialDate: toDate,
+                                firstDate: fromDate,
+                                lastDate: DateTime(2030),
+                              );
+                              if (p != null) {
+                                setModalState(() => toDate = p);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.save_rounded),
+                      label: const Text('Save & Submit Leave Allocation'),
+                      onPressed: () async {
+                        final double days =
+                            double.tryParse(daysCtrl.text.trim()) ?? 14;
+                        Navigator.pop(ctx);
+                        try {
+                          await ErpApiClient.instance.createDoc(
+                            'Leave Allocation',
+                            <String, dynamic>{
+                              'employee': selectedEmp,
+                              if (session != null) 'company': session.company,
+                              'leave_type': selectedLeaveType,
+                              'from_date': DateFormat('yyyy-MM-dd')
+                                  .format(fromDate),
+                              'to_date': DateFormat('yyyy-MM-dd')
+                                  .format(toDate),
+                              'new_leaves_allocated': days,
+                              'docstatus': 1,
+                            },
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Leave Allocation created!'),
+                              ),
+                            );
+                          }
+                          await _loadAllData();
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  ErpApiClient.formatErrorMessage(e),
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _showCreateLeaveSheet() async {
     final UserSession? session = ErpApiClient.instance.session;
+    final List<Map<String, dynamic>> emps = _effectiveEmployees;
+    String selectedEmp = session?.employeeId.isNotEmpty == true
+        ? session!.employeeId
+        : (emps.first['name'] ?? '').toString();
+    if (!emps.any((Map<String, dynamic> e) => e['name'] == selectedEmp)) {
+      selectedEmp = (emps.first['name'] ?? '').toString();
+    }
     String selectedLeaveType = _leaveTypes.first;
     DateTime fromDate = DateTime.now();
     DateTime toDate = DateTime.now().add(const Duration(days: 1));
@@ -275,10 +540,38 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
+                      initialValue: selectedEmp,
+                      decoration: const InputDecoration(
+                        labelText: 'Employee',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: emps
+                          .map(
+                            (
+                              Map<String, dynamic> e,
+                            ) => DropdownMenuItem<String>(
+                              value: (e['name'] ?? '').toString(),
+                              child: Text(
+                                '${e['employee_name'] ?? e['name']} (${e['name']})',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (String? v) {
+                        if (v != null) {
+                          setModalState(() => selectedEmp = v);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
                       initialValue: selectedLeaveType,
                       decoration: const InputDecoration(
                         labelText: 'Leave Type',
                         border: OutlineInputBorder(),
+                        isDense: true,
                       ),
                       items: _leaveTypes
                           .map(
@@ -368,9 +661,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                           await ErpApiClient.instance.createDoc(
                             'Leave Application',
                             <String, dynamic>{
-                              if (session != null &&
-                                  session.employeeId.isNotEmpty)
-                                'employee': session.employeeId,
+                              'employee': selectedEmp,
                               if (session != null) 'company': session.company,
                               'leave_type': selectedLeaveType,
                               'from_date': DateFormat('yyyy-MM-dd')
@@ -415,8 +706,17 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
     );
   }
 
-  Future<void> _showCreateExpenseClaimSheet() async {
+  Future<void> _showCreateExpenseClaimSheet({
+    String? preselectedAdvance,
+  }) async {
     final UserSession? session = ErpApiClient.instance.session;
+    final List<Map<String, dynamic>> emps = _effectiveEmployees;
+    String selectedEmp = session?.employeeId.isNotEmpty == true
+        ? session!.employeeId
+        : (emps.first['name'] ?? '').toString();
+    if (!emps.any((Map<String, dynamic> e) => e['name'] == selectedEmp)) {
+      selectedEmp = (emps.first['name'] ?? '').toString();
+    }
     String selectedExpenseType = _expenseTypes.first;
     final TextEditingController amountCtrl = TextEditingController();
     final TextEditingController detailsCtrl = TextEditingController();
@@ -428,7 +728,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
     String? selectedProject = (session != null && session.projects.isNotEmpty)
         ? session.projects.first
         : null;
-    String? selectedAdvance;
+    String? selectedAdvance = preselectedAdvance;
     String? receiptPath;
     String? receiptFileName;
     bool uploading = false;
@@ -472,6 +772,33 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                       ),
                     ),
                     const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedEmp,
+                      decoration: const InputDecoration(
+                        labelText: 'Employee',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: emps
+                          .map(
+                            (
+                              Map<String, dynamic> e,
+                            ) => DropdownMenuItem<String>(
+                              value: (e['name'] ?? '').toString(),
+                              child: Text(
+                                '${e['employee_name'] ?? e['name']} (${e['name']})',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (String? v) {
+                        if (v != null) {
+                          setModalState(() => selectedEmp = v);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: selectedExpenseType,
                       decoration: const InputDecoration(
@@ -580,7 +907,13 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                     ],
                     if (matchingAdvances.isNotEmpty) ...<Widget>[
                       DropdownButtonFormField<String?>(
-                        initialValue: selectedAdvance,
+                        initialValue:
+                            matchingAdvances.any(
+                              (Map<String, dynamic> a) =>
+                                  a['name'] == selectedAdvance,
+                            )
+                            ? selectedAdvance
+                            : null,
                         decoration: const InputDecoration(
                           labelText: 'Link Employee Advance (Optional)',
                           border: OutlineInputBorder(),
@@ -721,9 +1054,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                                     .format(DateTime.now());
                                 final Map<String, dynamic>
                                 payload = <String, dynamic>{
-                                  if (session != null &&
-                                      session.employeeId.isNotEmpty)
-                                    'employee': session.employeeId,
+                                  'employee': selectedEmp,
                                   if (session != null)
                                     'company': session.company,
                                   'posting_date': today,
@@ -805,6 +1136,13 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
 
   Future<void> _showCreateAdvanceSheet() async {
     final UserSession? session = ErpApiClient.instance.session;
+    final List<Map<String, dynamic>> emps = _effectiveEmployees;
+    String selectedEmp = session?.employeeId.isNotEmpty == true
+        ? session!.employeeId
+        : (emps.first['name'] ?? '').toString();
+    if (!emps.any((Map<String, dynamic> e) => e['name'] == selectedEmp)) {
+      selectedEmp = (emps.first['name'] ?? '').toString();
+    }
     final TextEditingController amountCtrl = TextEditingController();
     final TextEditingController purposeCtrl = TextEditingController();
     String? selectedProject = (session != null && session.projects.isNotEmpty)
@@ -841,6 +1179,33 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                       ),
                     ),
                     const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedEmp,
+                      decoration: const InputDecoration(
+                        labelText: 'Employee',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: emps
+                          .map(
+                            (
+                              Map<String, dynamic> e,
+                            ) => DropdownMenuItem<String>(
+                              value: (e['name'] ?? '').toString(),
+                              child: Text(
+                                '${e['employee_name'] ?? e['name']} (${e['name']})',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (String? v) {
+                        if (v != null) {
+                          setModalState(() => selectedEmp = v);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: amountCtrl,
                       keyboardType: const TextInputType.numberWithOptions(
@@ -850,6 +1215,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                         labelText:
                             'Advance Amount (${session?.currencySymbol ?? '৳'})',
                         border: const OutlineInputBorder(),
+                        isDense: true,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -860,6 +1226,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                         decoration: const InputDecoration(
                           labelText: 'Project',
                           border: OutlineInputBorder(),
+                          isDense: true,
                         ),
                         items: session.projects
                             .map(
@@ -952,9 +1319,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                                 await ErpApiClient.instance.createDoc(
                                   'Employee Advance',
                                   <String, dynamic>{
-                                    if (session != null &&
-                                        session.employeeId.isNotEmpty)
-                                      'employee': session.employeeId,
+                                    'employee': selectedEmp,
                                     if (session != null)
                                       'company': session.company,
                                     'posting_date': today,
@@ -1020,6 +1385,111 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
     );
   }
 
+  Future<void> _showAdvanceDetailsSheet(
+    Map<String, dynamic> adv,
+    String sym,
+  ) async {
+    final String docName = (adv['name'] ?? '').toString();
+    final String status = (adv['status'] ?? 'Draft').toString();
+    final double advanceAmt = (adv['advance_amount'] as num?)?.toDouble() ?? 0;
+    final double paidAmt = (adv['paid_amount'] as num?)?.toDouble() ?? 0;
+    final double claimedAmt = (adv['claimed_amount'] as num?)?.toDouble() ?? 0;
+    final double returnAmt = (adv['return_amount'] as num?)?.toDouble() ?? 0;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Text(
+                'Employee Advance: $docName',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                '${adv['employee_name'] ?? adv['employee'] ?? ''} • Status: $status',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              const Divider(height: 20),
+              Text('Purpose: ${adv['purpose'] ?? 'N/A'}'),
+              Text('Project: ${adv['project'] ?? 'General'}'),
+              Text('Posting Date: ${adv['posting_date'] ?? ''}'),
+              const SizedBox(height: 8),
+              Text(
+                'Advance: $sym${advanceAmt.toStringAsFixed(0)}  •  Paid: $sym${paidAmt.toStringAsFixed(0)}  •  Claimed: $sym${claimedAmt.toStringAsFixed(0)}  •  Returned: $sym${returnAmt.toStringAsFixed(0)}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  if (status == 'Draft')
+                    FilledButton.tonalIcon(
+                      icon: const Icon(Icons.check_circle_outline, size: 18),
+                      label: const Text('Submit Advance'),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        try {
+                          await ErpApiClient.instance.updateDoc(
+                            'Employee Advance',
+                            docName,
+                            <String, dynamic>{'docstatus': 1},
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Submitted $docName!')),
+                            );
+                          }
+                          await _loadAllData();
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  ErpApiClient.formatErrorMessage(e),
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                    label: const Text('Claim Expense vs Advance'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showCreateExpenseClaimSheet(preselectedAdvance: docName);
+                    },
+                  ),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                    label: const Text('Download PDF'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      ErpApiClient.instance.downloadAndOpenPdf(
+                        doctype: 'Employee Advance',
+                        docname: docName,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final UserSession? session = ErpApiClient.instance.session;
@@ -1028,6 +1498,13 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Leave, Claims & Advances'),
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _loadAllData,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const <Widget>[
@@ -1065,14 +1542,24 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: <Widget>[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                const Text(
+                  'Leave Allocations',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: _showAllocateLeaveSheet,
+                  icon: const Icon(Icons.add_circle_outline, size: 16),
+                  label: const Text('Allocate Leave'),
+                ),
+              ],
+            ),
             if (_leaveAllocations.isNotEmpty) ...<Widget>[
-              const Text(
-                'Leave Allocations',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               SizedBox(
-                height: 84,
+                height: 86,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _leaveAllocations.length,
@@ -1080,7 +1567,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                   itemBuilder: (BuildContext context, int i) {
                     final Map<String, dynamic> a = _leaveAllocations[i];
                     return Container(
-                      width: 170,
+                      width: 175,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.secondaryContainer
@@ -1106,7 +1593,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                             style: const TextStyle(fontSize: 12),
                           ),
                           Text(
-                            '${a['employee_name'] ?? ''}',
+                            '${a['employee_name'] ?? a['employee'] ?? ''}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -1248,7 +1735,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                       children: <Widget>[
                         Expanded(
                           child: Text(
-                            '${c['employee_name'] ?? ''} ($docName)',
+                            '${c['employee_name'] ?? c['employee'] ?? ''} ($docName)',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
@@ -1276,12 +1763,25 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                       'Date: ${c['posting_date'] ?? ''} • Project: ${c['project'] ?? 'N/A'}',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
-                    if (approval == 'Draft' &&
-                        (session?.isApprover ?? true)) ...<Widget>[
-                      const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: <Widget>[
+                    const Divider(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: <Widget>[
+                        IconButton(
+                          tooltip: 'Download Expense Claim PDF',
+                          icon: const Icon(
+                            Icons.picture_as_pdf_rounded,
+                            size: 18,
+                          ),
+                          onPressed: () {
+                            ErpApiClient.instance.downloadAndOpenPdf(
+                              doctype: 'Expense Claim',
+                              docname: docName,
+                            );
+                          },
+                        ),
+                        if (approval == 'Draft' &&
+                            (session?.isApprover ?? true)) ...<Widget>[
                           TextButton(
                             onPressed: () =>
                                 _updateExpenseApproval(docName, 'Rejected'),
@@ -1297,8 +1797,8 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                             child: const Text('Approve Claim'),
                           ),
                         ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1376,8 +1876,9 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 child: ListTile(
+                  onTap: () => _showAdvanceDetailsSheet(adv, sym),
                   title: Text(
-                    '${adv['employee_name'] ?? ''} • $sym${amount.toStringAsFixed(0)}',
+                    '${adv['employee_name'] ?? adv['employee'] ?? ''} • $sym${amount.toStringAsFixed(0)}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(

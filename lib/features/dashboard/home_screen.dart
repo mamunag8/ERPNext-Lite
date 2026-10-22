@@ -263,7 +263,7 @@ class _DashboardTabState extends State<_DashboardTab> {
             children: <Widget>[
               _ModuleCard(
                 title: 'HR & Attendance',
-                subtitle: 'Geo-Fence, Selfie Check-In/Out & Shifts',
+                subtitle: 'Check-In, Attendance Tool, Monthly Sheet & Shifts',
                 icon: Icons.how_to_reg_rounded,
                 color: Colors.teal,
                 onTap: () => widget.onNavigateTab(1),
@@ -276,8 +276,8 @@ class _DashboardTabState extends State<_DashboardTab> {
                 onTap: () => widget.onNavigateTab(2),
               ),
               _ModuleCard(
-                title: 'Payroll & Slips',
-                subtitle: 'Salary Slip Breakdown & PDF Download',
+                title: 'Payroll & Salary Ops',
+                subtitle: 'Slips, Payroll Entry, Structure & Additional Salary',
                 icon: Icons.picture_as_pdf_rounded,
                 color: Colors.deepPurple,
                 onTap: () {
@@ -341,6 +341,129 @@ class _DashboardTabState extends State<_DashboardTab> {
                     context,
                     MaterialPageRoute<void>(
                       builder: (_) => const DocTypeExplorerScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'ERPNext HR Operations (9 Core Tools)',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              ActionChip(
+                avatar: const Icon(Icons.fact_check_rounded, size: 16),
+                label: const Text('1. Employee Attendance Tool'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AttendanceScreen(initialTab: 1),
+                    ),
+                  );
+                },
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.calendar_month_rounded, size: 16),
+                label: const Text('2. Monthly Attendance Sheet'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AttendanceScreen(initialTab: 2),
+                    ),
+                  );
+                },
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.beach_access_rounded, size: 16),
+                label: const Text('3. Leave Application Mgmt'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const LeaveAndClaimsScreen(initialTab: 0),
+                    ),
+                  );
+                },
+              ),
+              ActionChip(
+                avatar: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  size: 16,
+                ),
+                label: const Text('4. Employee Advance Mgmt'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const LeaveAndClaimsScreen(initialTab: 2),
+                    ),
+                  );
+                },
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.receipt_long_rounded, size: 16),
+                label: const Text('5. Expense Claim Mgmt'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const LeaveAndClaimsScreen(initialTab: 1),
+                    ),
+                  );
+                },
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.account_balance_rounded, size: 16),
+                label: const Text('6. Payroll Entry'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PayrollScreen(initialTab: 1),
+                    ),
+                  );
+                },
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.assignment_ind_rounded, size: 16),
+                label: const Text('7. Salary Structure Assign'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PayrollScreen(initialTab: 2),
+                    ),
+                  );
+                },
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                label: const Text('8. Salary Slip Generation'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PayrollScreen(initialTab: 0),
+                    ),
+                  );
+                },
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.add_card_rounded, size: 16),
+                label: const Text('9. Additional Salary Slip'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PayrollScreen(initialTab: 3),
                     ),
                   );
                 },

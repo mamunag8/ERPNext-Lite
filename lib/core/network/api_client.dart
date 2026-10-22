@@ -516,6 +516,45 @@ class ErpApiClient extends ChangeNotifier {
 
   List<Map<String, dynamic>> _getDemoList(String doctype) {
     switch (doctype) {
+      case 'Employee':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': 'HR-EMP-00001',
+            'employee_name': 'Google Play Reviewer',
+            'department': 'Operations - DIBL',
+            'designation': 'Senior Operations Manager',
+            'branch': 'Dhaka HQ',
+            'status': 'Active',
+            'company': 'Drip Irrigation BD Ltd',
+          },
+          <String, dynamic>{
+            'name': 'HR-EMP-00002',
+            'employee_name': 'Engr. Mahmudul Hasan',
+            'department': 'Engineering & Projects - DIBL',
+            'designation': 'Project Engineer',
+            'branch': 'Gazipur Site',
+            'status': 'Active',
+            'company': 'Drip Irrigation BD Ltd',
+          },
+          <String, dynamic>{
+            'name': 'HR-EMP-00003',
+            'employee_name': 'Farhana Akter',
+            'department': 'Accounts & Finance - DIBL',
+            'designation': 'Accounts Officer',
+            'branch': 'Dhaka HQ',
+            'status': 'Active',
+            'company': 'Drip Irrigation BD Ltd',
+          },
+          <String, dynamic>{
+            'name': 'HR-EMP-00004',
+            'employee_name': 'Tanvir Ahmed',
+            'department': 'Sales & Marketing - DIBL',
+            'designation': 'Regional Sales Executive',
+            'branch': 'Rajshahi Zone',
+            'status': 'Active',
+            'company': 'Drip Irrigation BD Ltd',
+          },
+        ];
       case 'Employee Checkin':
         return <Map<String, dynamic>>[
           <String, dynamic>{
@@ -537,17 +576,47 @@ class ErpApiClient extends ChangeNotifier {
         return <Map<String, dynamic>>[
           <String, dynamic>{
             'name': 'HR-ATT-2026-00412',
+            'employee': 'HR-EMP-00001',
             'employee_name': 'Google Play Reviewer',
+            'department': 'Operations - DIBL',
             'attendance_date': '2026-10-17',
             'status': 'Present',
             'shift': 'General Shift',
+            'late_entry': 0,
+            'early_exit': 0,
           },
           <String, dynamic>{
             'name': 'HR-ATT-2026-00411',
+            'employee': 'HR-EMP-00001',
             'employee_name': 'Google Play Reviewer',
+            'department': 'Operations - DIBL',
             'attendance_date': '2026-10-16',
             'status': 'Present',
             'shift': 'General Shift',
+            'late_entry': 0,
+            'early_exit': 0,
+          },
+          <String, dynamic>{
+            'name': 'HR-ATT-2026-00410',
+            'employee': 'HR-EMP-00002',
+            'employee_name': 'Engr. Mahmudul Hasan',
+            'department': 'Engineering & Projects - DIBL',
+            'attendance_date': '2026-10-17',
+            'status': 'Present',
+            'shift': 'General Shift',
+            'late_entry': 1,
+            'early_exit': 0,
+          },
+          <String, dynamic>{
+            'name': 'HR-ATT-2026-00409',
+            'employee': 'HR-EMP-00003',
+            'employee_name': 'Farhana Akter',
+            'department': 'Accounts & Finance - DIBL',
+            'attendance_date': '2026-10-17',
+            'status': 'On Leave',
+            'shift': 'General Shift',
+            'late_entry': 0,
+            'early_exit': 0,
           },
         ];
       case 'Shift Request':
@@ -561,36 +630,103 @@ class ErpApiClient extends ChangeNotifier {
             'status': 'Approved',
           },
         ];
+      case 'Leave Allocation':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': 'HR-LAL-2026-00001',
+            'employee': 'HR-EMP-00001',
+            'employee_name': 'Google Play Reviewer',
+            'leave_type': 'Casual Leave',
+            'total_leaves_allocated': 14,
+            'from_date': '2026-01-01',
+            'to_date': '2026-12-31',
+          },
+          <String, dynamic>{
+            'name': 'HR-LAL-2026-00002',
+            'employee': 'HR-EMP-00001',
+            'employee_name': 'Google Play Reviewer',
+            'leave_type': 'Sick Leave',
+            'total_leaves_allocated': 14,
+            'from_date': '2026-01-01',
+            'to_date': '2026-12-31',
+          },
+          <String, dynamic>{
+            'name': 'HR-LAL-2026-00003',
+            'employee': 'HR-EMP-00001',
+            'employee_name': 'Google Play Reviewer',
+            'leave_type': 'Earned Leave',
+            'total_leaves_allocated': 18,
+            'from_date': '2026-01-01',
+            'to_date': '2026-12-31',
+          },
+        ];
       case 'Leave Application':
         return <Map<String, dynamic>>[
           <String, dynamic>{
             'name': 'HR-LAP-2026-00045',
+            'employee': 'HR-EMP-00001',
             'employee_name': 'Google Play Reviewer',
             'leave_type': 'Casual Leave',
             'from_date': '2026-10-28',
             'to_date': '2026-10-29',
             'total_leave_days': 2,
             'status': 'Approved',
+            'description': 'Family event in Rajshahi',
+          },
+          <String, dynamic>{
+            'name': 'HR-LAP-2026-00046',
+            'employee': 'HR-EMP-00002',
+            'employee_name': 'Engr. Mahmudul Hasan',
+            'leave_type': 'Sick Leave',
+            'from_date': '2026-10-24',
+            'to_date': '2026-10-25',
+            'total_leave_days': 2,
+            'status': 'Open',
+            'description': 'Medical checkup & rest',
           },
         ];
       case 'Expense Claim':
         return <Map<String, dynamic>>[
           <String, dynamic>{
             'name': 'HR-EXP-2026-00089',
+            'employee': 'HR-EMP-00001',
             'employee_name': 'Google Play Reviewer',
             'posting_date': '2026-10-16',
+            'project': 'PROJ-0001',
+            'cost_center': 'Main - DIBL',
             'total_claimed_amount': 4500,
+            'total_sanctioned_amount': 4500,
+            'total_amount_reimbursed': 4500,
             'approval_status': 'Approved',
             'status': 'Paid',
+          },
+          <String, dynamic>{
+            'name': 'HR-EXP-2026-00092',
+            'employee': 'HR-EMP-00002',
+            'employee_name': 'Engr. Mahmudul Hasan',
+            'posting_date': '2026-10-18',
+            'project': 'PROJ-0001',
+            'cost_center': 'Projects - DIBL',
+            'total_claimed_amount': 3200,
+            'total_sanctioned_amount': 3200,
+            'total_amount_reimbursed': 0,
+            'approval_status': 'Draft',
+            'status': 'Draft',
           },
         ];
       case 'Employee Advance':
         return <Map<String, dynamic>>[
           <String, dynamic>{
             'name': 'HR-EAD-2026-00112',
+            'employee': 'HR-EMP-00001',
             'employee_name': 'Google Play Reviewer',
             'posting_date': '2026-10-15',
+            'project': 'PROJ-0001',
             'advance_amount': 12000,
+            'paid_amount': 12000,
+            'claimed_amount': 4500,
+            'return_amount': 0,
+            'pending_amount': 7500,
             'purpose': 'Gazipur Drip Irrigation Site Installation',
             'status': 'Paid',
           },
@@ -599,7 +735,11 @@ class ErpApiClient extends ChangeNotifier {
         return <Map<String, dynamic>>[
           <String, dynamic>{
             'name': 'Sal Slip/HR-EMP-00001/00009',
+            'employee': 'HR-EMP-00001',
             'employee_name': 'Google Play Reviewer',
+            'department': 'Operations - DIBL',
+            'designation': 'Senior Operations Manager',
+            'salary_structure': 'DIBL Monthly Regular Structure',
             'posting_date': '2026-09-30',
             'start_date': '2026-09-01',
             'end_date': '2026-09-30',
@@ -607,6 +747,177 @@ class ErpApiClient extends ChangeNotifier {
             'total_deduction': 3500,
             'net_pay': 81500,
             'status': 'Submitted',
+            'docstatus': 1,
+            'earnings': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'salary_component': 'Basic Salary',
+                'amount': 50000,
+              },
+              <String, dynamic>{
+                'salary_component': 'House Rent Allowance',
+                'amount': 25000,
+              },
+              <String, dynamic>{
+                'salary_component': 'Medical & Conveyance',
+                'amount': 10000,
+              },
+            ],
+            'deductions': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'salary_component': 'Income Tax (AIT)',
+                'amount': 2500,
+              },
+              <String, dynamic>{
+                'salary_component': 'Provident Fund',
+                'amount': 1000,
+              },
+            ],
+          },
+          <String, dynamic>{
+            'name': 'Sal Slip/HR-EMP-00002/00009',
+            'employee': 'HR-EMP-00002',
+            'employee_name': 'Engr. Mahmudul Hasan',
+            'department': 'Engineering & Projects - DIBL',
+            'designation': 'Project Engineer',
+            'salary_structure': 'DIBL Monthly Regular Structure',
+            'posting_date': '2026-10-20',
+            'start_date': '2026-10-01',
+            'end_date': '2026-10-31',
+            'gross_pay': 62000,
+            'total_deduction': 2000,
+            'net_pay': 60000,
+            'status': 'Draft',
+            'docstatus': 0,
+          },
+        ];
+      case 'Payroll Entry':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': 'PR-ENT-2026-00010',
+            'company': 'Drip Irrigation BD Ltd',
+            'posting_date': '2026-10-25',
+            'payroll_frequency': 'Monthly',
+            'start_date': '2026-10-01',
+            'end_date': '2026-10-31',
+            'department': 'Operations - DIBL',
+            'branch': 'Dhaka HQ',
+            'currency': 'BDT',
+            'status': 'Submitted',
+            'docstatus': 1,
+            'salary_slips_created': 1,
+            'salary_slips_submitted': 1,
+          },
+          <String, dynamic>{
+            'name': 'PR-ENT-2026-00009',
+            'company': 'Drip Irrigation BD Ltd',
+            'posting_date': '2026-09-30',
+            'payroll_frequency': 'Monthly',
+            'start_date': '2026-09-01',
+            'end_date': '2026-09-30',
+            'department': 'All Departments',
+            'branch': 'Dhaka HQ',
+            'currency': 'BDT',
+            'status': 'Submitted',
+            'docstatus': 1,
+            'salary_slips_created': 1,
+            'salary_slips_submitted': 1,
+          },
+        ];
+      case 'Salary Structure':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': 'DIBL Monthly Regular Structure',
+            'company': 'Drip Irrigation BD Ltd',
+            'is_active': 'Yes',
+            'payroll_frequency': 'Monthly',
+            'currency': 'BDT',
+          },
+          <String, dynamic>{
+            'name': 'Field Engineering & Project Structure',
+            'company': 'Drip Irrigation BD Ltd',
+            'is_active': 'Yes',
+            'payroll_frequency': 'Monthly',
+            'currency': 'BDT',
+          },
+        ];
+      case 'Salary Structure Assignment':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': 'HR-SSA-2026-00001',
+            'employee': 'HR-EMP-00001',
+            'employee_name': 'Google Play Reviewer',
+            'department': 'Operations - DIBL',
+            'designation': 'Senior Operations Manager',
+            'salary_structure': 'DIBL Monthly Regular Structure',
+            'from_date': '2026-01-01',
+            'base': 85000,
+            'variable': 10000,
+            'company': 'Drip Irrigation BD Ltd',
+            'docstatus': 1,
+          },
+          <String, dynamic>{
+            'name': 'HR-SSA-2026-00002',
+            'employee': 'HR-EMP-00002',
+            'employee_name': 'Engr. Mahmudul Hasan',
+            'department': 'Engineering & Projects - DIBL',
+            'designation': 'Project Engineer',
+            'salary_structure': 'Field Engineering & Project Structure',
+            'from_date': '2026-01-01',
+            'base': 62000,
+            'variable': 5000,
+            'company': 'Drip Irrigation BD Ltd',
+            'docstatus': 1,
+          },
+        ];
+      case 'Additional Salary':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': 'HR-ADS-2026-00015',
+            'employee': 'HR-EMP-00001',
+            'employee_name': 'Google Play Reviewer',
+            'department': 'Operations - DIBL',
+            'salary_component': 'Performance Bonus',
+            'type': 'Earning',
+            'payroll_date': '2026-10-25',
+            'amount': 15000,
+            'currency': 'BDT',
+            'overwrite_salary_structure_amount': 0,
+            'docstatus': 1,
+          },
+          <String, dynamic>{
+            'name': 'HR-ADS-2026-00016',
+            'employee': 'HR-EMP-00002',
+            'employee_name': 'Engr. Mahmudul Hasan',
+            'department': 'Engineering & Projects - DIBL',
+            'salary_component': 'Project Site Overtime Allowance',
+            'type': 'Earning',
+            'payroll_date': '2026-10-25',
+            'amount': 6500,
+            'currency': 'BDT',
+            'overwrite_salary_structure_amount': 0,
+            'docstatus': 1,
+          },
+        ];
+      case 'Salary Component':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{'name': 'Performance Bonus', 'type': 'Earning'},
+          <String, dynamic>{
+            'name': 'Project Site Overtime Allowance',
+            'type': 'Earning',
+          },
+          <String, dynamic>{'name': 'Festival Bonus', 'type': 'Earning'},
+          <String, dynamic>{
+            'name': 'Mobile & Internet Allowance',
+            'type': 'Earning',
+          },
+          <String, dynamic>{'name': 'Arrear Salary', 'type': 'Earning'},
+          <String, dynamic>{
+            'name': 'Advance Salary Deduction',
+            'type': 'Deduction',
+          },
+          <String, dynamic>{
+            'name': 'Late Attendance Deduction',
+            'type': 'Deduction',
           },
         ];
       case 'Sales Invoice':
