@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
@@ -10,6 +11,7 @@ import '../hr/leave_claims_screen.dart';
 import '../payroll/payroll_screen.dart';
 import '../projects/projects_stock_screen.dart';
 import '../sales/sales_billing_screen.dart';
+import '../todo/quick_todo_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,16 +31,18 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() => _selectedIndex = tabIdx);
         },
       ),
+      const QuickTodoScreen(),
+      const CrmAndTasksScreen(),
       const AttendanceScreen(),
       const LeaveAndClaimsScreen(),
       const SalesBillingScreen(),
-      const ProjectsAndStockScreen(),
     ];
 
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: tabs),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         onDestinationSelected: (int idx) {
           setState(() => _selectedIndex = idx);
         },
@@ -49,6 +53,16 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Home',
           ),
           NavigationDestination(
+            icon: Icon(Icons.check_circle_outline_rounded),
+            selectedIcon: Icon(Icons.task_alt_rounded),
+            label: 'ToDo',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.handshake_outlined),
+            selectedIcon: Icon(Icons.handshake_rounded),
+            label: 'CRM',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.pin_drop_outlined),
             selectedIcon: Icon(Icons.pin_drop_rounded),
             label: 'Attendance',
@@ -56,17 +70,12 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(
             icon: Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long_rounded),
-            label: 'Leave & Claims',
+            label: 'Claims',
           ),
           NavigationDestination(
             icon: Icon(Icons.point_of_sale_outlined),
             selectedIcon: Icon(Icons.point_of_sale_rounded),
-            label: 'Sales & Bill',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.work_outline_rounded),
-            selectedIcon: Icon(Icons.work_rounded),
-            label: 'Projects',
+            label: 'Sales',
           ),
         ],
       ),
@@ -85,6 +94,59 @@ class _DashboardTab extends StatefulWidget {
 
 class _DashboardTabState extends State<_DashboardTab> {
   bool _syncing = false;
+  bool _addingTodo = false;
+  final TextEditingController _quickTodoCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _quickTodoCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _addQuickHomeTodo() async {
+    final String text = _quickTodoCtrl.text.trim();
+    if (text.isEmpty) {
+      widget.onNavigateTab(1);
+      return;
+    }
+    setState(() => _addingTodo = true);
+    final UserSession? session = ErpApiClient.instance.session;
+    final String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    try {
+      await ErpApiClient.instance.createDoc('ToDo', <String, dynamic>{
+        'description': text,
+        'priority': 'High',
+        'status': 'Open',
+        'date': todayStr,
+        if (session != null && session.email.isNotEmpty)
+          'allocated_to': session.email,
+      });
+      _quickTodoCtrl.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.green.shade700,
+            content: const Text('Quick ToDo added!'),
+            action: SnackBarAction(
+              label: 'View ToDo Dock',
+              textColor: Colors.white,
+              onPressed: () => widget.onNavigateTab(1),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErpApiClient.formatErrorMessage(e))),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _addingTodo = false);
+      }
+    }
+  }
 
   Future<void> _confirmLogout() async {
     final bool? confirmed = await showDialog<bool>(
@@ -133,6 +195,11 @@ class _DashboardTabState extends State<_DashboardTab> {
           ],
         ),
         actions: <Widget>[
+          IconButton(
+            tooltip: 'Quick ToDo & Activity Dock',
+            icon: const Icon(Icons.task_alt_rounded),
+            onPressed: () => widget.onNavigateTab(1),
+          ),
           IconButton(
             tooltip: 'Sync Metadata',
             icon: _syncing
@@ -237,9 +304,27 @@ class _DashboardTabState extends State<_DashboardTab> {
                           backgroundColor: Colors.white,
                           foregroundColor: colors.primary,
                         ),
+                        onPressed: () => widget.onNavigateTab(3),
+                        icon: const Icon(Icons.camera_front_rounded, size: 17),
+                        label: const Text(
+                          'Selfie Check-In',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.18),
+                          foregroundColor: Colors.white,
+                        ),
                         onPressed: () => widget.onNavigateTab(1),
-                        icon: const Icon(Icons.camera_front_rounded, size: 18),
-                        label: const Text('Geo-Fence Selfie Check-In'),
+                        icon: const Icon(Icons.task_alt_rounded, size: 17),
+                        label: const Text(
+                          'Quick ToDo Dock',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                     ),
                   ],
@@ -247,7 +332,84 @@ class _DashboardTabState extends State<_DashboardTab> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
+
+          // Quick ToDo & Activity Dock Bar right on Home Screen
+          Card(
+            elevation: 0,
+            color: colors.secondaryContainer.withValues(alpha: 0.4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: colors.primary.withValues(alpha: 0.2)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Icon(Icons.bolt_rounded, size: 18, color: colors.primary),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text(
+                          'Quick ToDo & Activity Tracker',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () => widget.onNavigateTab(2),
+                        icon: const Icon(Icons.handshake_rounded, size: 15),
+                        label: const Text(
+                          'Frappe CRM',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextField(
+                          controller: _quickTodoCtrl,
+                          onSubmitted: (_) => _addQuickHomeTodo(),
+                          decoration: InputDecoration(
+                            hintText: 'Add a quick task or follow-up...',
+                            filled: true,
+                            fillColor: colors.surface,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: _addingTodo ? null : _addQuickHomeTodo,
+                        icon: const Icon(Icons.add_task_rounded, size: 16),
+                        label: const Text('Add'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 18),
           const Text(
             'Regular Company Operations',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -262,18 +424,32 @@ class _DashboardTabState extends State<_DashboardTab> {
             childAspectRatio: 1.35,
             children: <Widget>[
               _ModuleCard(
+                title: 'Quick ToDo & Activity',
+                subtitle: '1-Tap Task Dock, Priority & Activity Log',
+                icon: Icons.task_alt_rounded,
+                color: Colors.amber.shade800,
+                onTap: () => widget.onNavigateTab(1),
+              ),
+              _ModuleCard(
+                title: 'Frappe CRM Pipeline',
+                subtitle: 'Leads, Deals, 1-Tap Stage Move & Follow-up',
+                icon: Icons.handshake_rounded,
+                color: Colors.orange.shade800,
+                onTap: () => widget.onNavigateTab(2),
+              ),
+              _ModuleCard(
                 title: 'HR & Attendance',
                 subtitle: 'Check-In, Attendance Tool, Monthly Sheet & Shifts',
                 icon: Icons.how_to_reg_rounded,
                 color: Colors.teal,
-                onTap: () => widget.onNavigateTab(1),
+                onTap: () => widget.onNavigateTab(3),
               ),
               _ModuleCard(
                 title: 'Leave & Claims',
                 subtitle: 'Leave Approval, Expense Receipt & Advance',
                 icon: Icons.account_balance_wallet_rounded,
                 color: Colors.indigo,
-                onTap: () => widget.onNavigateTab(2),
+                onTap: () => widget.onNavigateTab(4),
               ),
               _ModuleCard(
                 title: 'Payroll & Salary Ops',
@@ -294,28 +470,21 @@ class _DashboardTabState extends State<_DashboardTab> {
                 subtitle: 'Invoice, Order, Quote, Payment & Journal Entry',
                 icon: Icons.receipt_rounded,
                 color: Colors.blue.shade700,
-                onTap: () => widget.onNavigateTab(3),
-              ),
-              _ModuleCard(
-                title: 'CRM & Tasks',
-                subtitle: 'Leads, Deals/Opportunities & To-Do Follow-ups',
-                icon: Icons.handshake_rounded,
-                color: Colors.orange.shade800,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => const CrmAndTasksScreen(),
-                    ),
-                  );
-                },
+                onTap: () => widget.onNavigateTab(5),
               ),
               _ModuleCard(
                 title: 'Projects & Stock',
                 subtitle: 'Projects, Tasks, Timesheet, Delivery & Bin Stock',
                 icon: Icons.engineering_rounded,
                 color: Colors.green.shade700,
-                onTap: () => widget.onNavigateTab(4),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ProjectsAndStockScreen(),
+                    ),
+                  );
+                },
               ),
               _ModuleCard(
                 title: 'Buying & Assets',
@@ -481,9 +650,19 @@ class _DashboardTabState extends State<_DashboardTab> {
             runSpacing: 8,
             children: <Widget>[
               ActionChip(
+                avatar: const Icon(Icons.task_alt_rounded, size: 16),
+                label: const Text('Quick ToDo Dock'),
+                onPressed: () => widget.onNavigateTab(1),
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.handshake_rounded, size: 16),
+                label: const Text('Frappe CRM Pipeline'),
+                onPressed: () => widget.onNavigateTab(2),
+              ),
+              ActionChip(
                 avatar: const Icon(Icons.receipt_long, size: 16),
                 label: const Text('Sales Invoices (#1)'),
-                onPressed: () => widget.onNavigateTab(3),
+                onPressed: () => widget.onNavigateTab(5),
               ),
               ActionChip(
                 avatar: const Icon(Icons.shopping_cart_checkout, size: 16),
@@ -512,7 +691,14 @@ class _DashboardTabState extends State<_DashboardTab> {
               ActionChip(
                 avatar: const Icon(Icons.folder_open, size: 16),
                 label: const Text('Projects (#4)'),
-                onPressed: () => widget.onNavigateTab(4),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ProjectsAndStockScreen(),
+                    ),
+                  );
+                },
               ),
               ActionChip(
                 avatar: const Icon(Icons.task_alt, size: 16),

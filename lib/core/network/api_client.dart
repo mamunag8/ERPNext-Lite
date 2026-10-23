@@ -981,7 +981,33 @@ class ErpApiClient extends ChangeNotifier {
             'organization': 'Rajshahi Mango Growers',
             'company_name': 'Rajshahi Mango Growers',
             'mobile_no': '+8801711000000',
+            'email': 'rafiqul@rajshahimango.com',
             'status': 'Qualified',
+            'lead_owner': 'demo@kasbpro.com',
+          },
+          <String, dynamic>{
+            'name': 'CRM-LEAD-2026-00081',
+            'lead_name': 'Engr. Kamrul Hasan',
+            'first_name': 'Engr. Kamrul',
+            'last_name': 'Hasan',
+            'organization': 'Sylhet Citrus & Tea Agro',
+            'company_name': 'Sylhet Citrus & Tea Agro',
+            'mobile_no': '+8801819000000',
+            'email': 'kamrul@sylhetagro.com',
+            'status': 'Contacted',
+            'lead_owner': 'demo@kasbpro.com',
+          },
+          <String, dynamic>{
+            'name': 'CRM-LEAD-2026-00085',
+            'lead_name': 'Abdul Kader Mia',
+            'first_name': 'Abdul Kader',
+            'last_name': 'Mia',
+            'organization': 'Bogra High-Value Vegetable Farm',
+            'company_name': 'Bogra High-Value Vegetable Farm',
+            'mobile_no': '+8801911000000',
+            'email': '',
+            'status': 'New',
+            'lead_owner': 'demo@kasbpro.com',
           },
         ];
       case 'CRM Deal':
@@ -991,20 +1017,106 @@ class ErpApiClient extends ChangeNotifier {
             'name': 'CRM-DEAL-2026-00034',
             'organization': 'Green Valley Agro Farms Ltd',
             'party_name': 'Green Valley Agro Farms Ltd',
-            'status': 'Proposal/Price Quote',
+            'status': 'Proposal/Quotation',
+            'deal_value': 320000,
             'opportunity_amount': 320000,
+            'deal_owner': 'demo@kasbpro.com',
+          },
+          <String, dynamic>{
+            'name': 'CRM-DEAL-2026-00039',
+            'organization': 'Rajshahi Mango Growers',
+            'party_name': 'Rajshahi Mango Growers',
+            'status': 'Negotiation',
+            'deal_value': 185000,
+            'opportunity_amount': 185000,
+            'deal_owner': 'demo@kasbpro.com',
           },
         ];
       case 'CRM Task':
-      case 'ToDo':
         return <Map<String, dynamic>>[
           <String, dynamic>{
             'name': 'TASK-CRM-0019',
             'title': 'Send 5-Acre Drip Irrigation Layout Proposal',
-            'description': 'Send 5-Acre Drip Irrigation Layout Proposal',
+            'description':
+                'Prepare CAD layout and BOQ for Rajshahi Mango Growers',
+            'status': 'Todo',
+            'priority': 'High',
+            'due_date': '2026-10-23',
+            'assigned_to': 'demo@kasbpro.com',
+            'reference_doctype': 'CRM Lead',
+            'reference_docname': 'CRM-LEAD-2026-00077',
+          },
+          <String, dynamic>{
+            'name': 'TASK-CRM-0022',
+            'title': 'Follow up on Pump & Filter Quotation',
+            'description': 'Call Green Valley Agro MD regarding final discount',
+            'status': 'In Progress',
+            'priority': 'Medium',
+            'due_date': '2026-10-24',
+            'assigned_to': 'demo@kasbpro.com',
+            'reference_doctype': 'CRM Deal',
+            'reference_docname': 'CRM-DEAL-2026-00034',
+          },
+        ];
+      case 'ToDo':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': 'TODO-2026-0041',
+            'description': 'Send 5-Acre Drip Irrigation Layout Proposal to Rajshahi Mango Growers',
             'status': 'Open',
             'priority': 'High',
-            'date': '2026-10-19',
+            'date': '2026-10-23',
+            'allocated_to': 'demo@kasbpro.com',
+            'reference_type': 'CRM Lead',
+            'reference_name': 'CRM-LEAD-2026-00077',
+            'modified': '2026-10-23 08:30:00',
+          },
+          <String, dynamic>{
+            'name': 'TODO-2026-0042',
+            'description': 'Verify Gazipur Greenhouse 16mm lateral pipe stock before dispatch',
+            'status': 'Open',
+            'priority': 'Medium',
+            'date': '2026-10-24',
+            'allocated_to': 'demo@kasbpro.com',
+            'reference_type': 'Project',
+            'reference_name': 'PROJ-0001',
+            'modified': '2026-10-22 16:15:00',
+          },
+          <String, dynamic>{
+            'name': 'TODO-2026-0038',
+            'description':
+                'Complete site soil & water pressure test at Barind Orchard',
+            'status': 'Closed',
+            'priority': 'High',
+            'date': '2026-10-20',
+            'allocated_to': 'demo@kasbpro.com',
+            'reference_type': 'CRM Deal',
+            'reference_name': 'CRM-DEAL-2026-00034',
+            'modified': '2026-10-20 17:45:00',
+          },
+        ];
+      case 'CRM Note':
+      case 'Comment':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'name': 'NOTE-2026-0012',
+            'title': 'Site Survey & Water Source Discussion',
+            'content': 'Client has a 5-acre mango orchard with submersible pump ready. Needs 16mm inline dripper quotation.',
+            'reference_doctype': 'CRM Lead',
+            'reference_docname': 'CRM-LEAD-2026-00077',
+            'reference_name': 'CRM-LEAD-2026-00077',
+            'owner': 'demo@kasbpro.com',
+            'creation': '2026-10-22 14:20:00',
+          },
+          <String, dynamic>{
+            'name': 'NOTE-2026-0015',
+            'title': 'Follow-up Call Completed',
+            'content': 'Sent BOQ via WhatsApp. Follow-up scheduled for tomorrow morning.',
+            'reference_doctype': 'ToDo',
+            'reference_docname': 'TODO-2026-0041',
+            'reference_name': 'TODO-2026-0041',
+            'owner': 'demo@kasbpro.com',
+            'creation': '2026-10-23 08:15:00',
           },
         ];
       case 'Project':

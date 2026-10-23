@@ -22,8 +22,14 @@
 - **💰 Sales, Billing & Accounting:**
   - **`Sales Invoice`**, **`Sales Order`**, **`Quotation`**, **`Payment Entry`**, and **`Journal Entry` (`JV`)** creation & PDF download.
   - **Smart Mobile Number Customer Lookup** (`Contact` -> `Customer` auto-fill).
-- **🤝 Dual CRM Engine (`FCRM` + Standard ERPNext `CRM`):**
-  - Auto-detects **Frappe CRM (`CRM Lead`, `CRM Deal`, `CRM Task`)** or standard ERPNext **`Lead`**, **`Opportunity`**, and **`ToDo`** with 1-tap Call, WhatsApp, and Email actions.
+- **✅ Quick ToDo Dock & Activity Tracker (`ToDo` DocType on Main Menu):**
+  - Dedicated **Quick ToDo & Activity** tab right on the bottom navigation bar + **Inline Quick-Add ToDo Bar** on the Home Dashboard.
+  - 1-Tap task creation with Priority chips (`High`, `Medium`, `Low`) and Due Date selector, synced across **`ToDo`** and **`CRM Task`**.
+  - 1-Tap task completion & **Log Activity** modal with 1-tap preset templates (`✅ Task completed & verified`, `📞 Called client`, `💬 Sent details on WhatsApp`, `📍 Site visit done`) + unified **Activity Timeline (`Comment` & `CRM Note`)**.
+- **🤝 Frappe CRM (`FCRM`) Guided Maintenance UX:**
+  - Horizontal **Pipeline Stage Filter Bars** for Leads (`New` → `Contacted` → `Nurture` → `Qualified` → `Converted`) and Deals (`Qualification` → `Demo/Making` → `Proposal/Quotation` → `Negotiation` → `Ready to Close` → `Won` / `Lost`).
+  - **1-Tap Guided Maintenance Steps** on every Lead & Deal card: `1. Call / WhatsApp`, `2. Advance Stage`, `3. + Log Note` (with 1-tap call/visit outcome presets), `4. + Follow-up ToDo`, and `5. Convert Lead → Deal`.
+  - **360° Lead/Deal Maintenance Sheet** showing interactive pipeline stepper, linked follow-up tasks, activity/notes history, and 1-tap conversion.
 - **🏗️ Projects, Timesheets & Stock:**
   - **`Project`** & **`Task`** tracking, progress slider updates, and **`Timesheet`** hour logging.
   - **`Material Request`** creation & **1-Tap Fulfillment into `Stock Entry`**.
