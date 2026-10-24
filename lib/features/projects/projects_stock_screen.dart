@@ -701,12 +701,38 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'Log Project Timesheet',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Expanded(
+                          child: Text(
+                            'Log Project Timesheet',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Timesheet',
+                              initialValues: <String, dynamic>{
+                                if (session != null &&
+                                    session.employeeId.isNotEmpty)
+                                  'employee': session.employeeId,
+                                if (session != null) 'company': session.company,
+                                'parent_project': ?selectedProject,
+                              },
+                              onCreated: _loadData,
+                            );
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
@@ -890,12 +916,35 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'New Material Request',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Expanded(
+                          child: Text(
+                            'New Material Request',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Material Request',
+                              initialValues: <String, dynamic>{
+                                if (session != null) 'company': session.company,
+                                'material_request_type': mrType,
+                              },
+                              onCreated: _loadData,
+                            );
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
@@ -2652,6 +2701,22 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                     'Warehouse: ${bin['warehouse'] ?? ''}\nProjected: ${NumberFormat('#,##0.##').format(projQty)} • Valuation: $sym${NumberFormat('#,##0.##').format(valRate)}',
                   ),
                   isThreeLine: true,
+                  trailing: IconButton(
+                    tooltip: 'View / Edit Item Master',
+                    icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                    onPressed: () {
+                      final String itemCode = (bin['item_code'] ?? '')
+                          .toString();
+                      if (itemCode.isNotEmpty) {
+                        ErpDocSheet.showViewAndEdit(
+                          context,
+                          doctype: 'Item',
+                          docname: itemCode,
+                          onSaved: _loadData,
+                        );
+                      }
+                    },
+                  ),
                 ),
               );
             }),
@@ -3158,12 +3223,35 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'New Delivery Note',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Expanded(
+                          child: Text(
+                            'New Delivery Note',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Delivery Note',
+                              initialValues: <String, dynamic>{
+                                if (session != null) 'company': session.company,
+                                'customer': customerCtrl.text.trim(),
+                              },
+                              onCreated: _loadData,
+                            );
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     TextField(

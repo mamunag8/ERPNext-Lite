@@ -340,12 +340,29 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'New Leave Allocation',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Text(
+                          'New Leave Allocation',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Leave Allocation',
+                              onCreated: _loadAllData,
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
@@ -540,12 +557,29 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'Apply for Leave',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Text(
+                          'Apply for Leave',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Leave Application',
+                              onCreated: _loadAllData,
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
@@ -773,12 +807,31 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'New Expense Claim (with Receipt)',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Expanded(
+                          child: Text(
+                            'New Expense Claim (with Receipt)',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Expense Claim',
+                              onCreated: _loadAllData,
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
@@ -1180,12 +1233,31 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'New Employee Advance Request',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Expanded(
+                          child: Text(
+                            'New Employee Advance Request',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Employee Advance',
+                              onCreated: _loadAllData,
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
@@ -2060,6 +2132,7 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                   ),
                   const SizedBox(height: 16),
                   ...filteredAdvances.map((Map<String, dynamic> adv) {
+                    final String docName = (adv['name'] ?? '').toString();
                     final double amount =
                         (adv['advance_amount'] as num?)?.toDouble() ?? 0;
                     final double claimed =
@@ -2076,11 +2149,30 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                           '${adv['purpose'] ?? ''}\nProject: ${adv['project'] ?? 'General'} • Claimed: $sym${claimed.toStringAsFixed(0)}',
                         ),
                         isThreeLine: true,
-                        trailing: Chip(
-                          label: Text(
-                            (adv['status'] ?? 'Draft').toString(),
-                            style: const TextStyle(fontSize: 11),
-                          ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Chip(
+                              label: Text(
+                                (adv['status'] ?? 'Draft').toString(),
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            IconButton(
+                              tooltip: 'View / Edit Employee Advance',
+                              icon: const Icon(
+                                Icons.edit_note_rounded,
+                                size: 20,
+                              ),
+                              onPressed: () => ErpDocSheet.showViewAndEdit(
+                                context,
+                                doctype: 'Employee Advance',
+                                docname: docName,
+                                onSaved: _loadAllData,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );

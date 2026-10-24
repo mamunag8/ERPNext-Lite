@@ -16,13 +16,47 @@ class DocTypeExplorerScreen extends StatefulWidget {
 class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
   static const List<String> _popularDocTypes = <String>[
     'Customer',
+    'Supplier',
     'Item',
     'Item Price',
+    'Project',
+    'Task',
+    'Timesheet',
+    'Sales Invoice',
+    'Sales Order',
+    'Delivery Note',
+    'Quotation',
+    'Purchase Order',
+    'Purchase Receipt',
+    'Purchase Invoice',
+    'Material Request',
+    'Stock Entry',
+    'Payment Entry',
+    'Journal Entry',
     'Employee',
-    'Additional Salary',
-    'Payroll Entry',
-    'Salary Structure Assignment',
+    'Attendance',
+    'Employee Checkin',
+    'Shift Request',
+    'Leave Application',
+    'Leave Allocation',
     'Leave Policy Assignment',
+    'Expense Claim',
+    'Employee Advance',
+    'Salary Slip',
+    'Payroll Entry',
+    'Salary Structure',
+    'Salary Structure Assignment',
+    'Additional Salary',
+    'Asset',
+    'Asset Movement',
+    'CRM Lead',
+    'Lead',
+    'CRM Deal',
+    'Opportunity',
+    'CRM Task',
+    'ToDo',
+    'FCRM Note',
+    'Note',
     'Stock Reconciliation',
     'Warehouse',
     'Cost Center',
@@ -30,31 +64,6 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
     'Contact',
     'Address',
     'Product Bundle',
-    'Sales Invoice',
-    'Sales Order',
-    'Quotation',
-    'Payment Entry',
-    'Journal Entry',
-    'Delivery Note',
-    'Purchase Order',
-    'Purchase Receipt',
-    'Purchase Invoice',
-    'Supplier',
-    'Asset',
-    'Asset Movement',
-    'Project',
-    'Task',
-    'Material Request',
-    'Stock Entry',
-    'Employee Advance',
-    'Expense Claim',
-    'Leave Application',
-    'Attendance',
-    'Employee Checkin',
-    'CRM Lead',
-    'CRM Deal',
-    'CRM Task',
-    'ToDo',
   ];
 
   late String _selectedDocType;
@@ -63,6 +72,14 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
   String _statusFilter = 'All';
   bool _loading = false;
   List<Map<String, dynamic>> _records = <Map<String, dynamic>>[];
+  Map<String, int> _permissions = <String, int>{
+    'read': 1,
+    'write': 1,
+    'create': 1,
+    'submit': 1,
+    'cancel': 1,
+    'delete': 1,
+  };
 
   @override
   void initState() {
@@ -89,21 +106,70 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
     });
 
     try {
-      final List<Map<String, dynamic>> rows = await ErpApiClient.instance
-          .getList(
-            dt,
-            fields: const <String>['name', 'modified', 'owner', 'docstatus'],
-            limitPageLength: 80,
-          );
+      final List<dynamic> res = await Future.wait<dynamic>(<Future<dynamic>>[
+        ErpApiClient.instance.getList(
+          dt,
+          fields: const <String>[
+            'name',
+            'modified',
+            'owner',
+            'docstatus',
+            'status',
+          ],
+          limitPageLength: 80,
+        ),
+        ErpApiClient.instance.getDocTypePermissions(dt),
+      ]);
       if (mounted) {
-        setState(() => _records = rows);
+        setState(() {
+          _records = res[0] as List<Map<String, dynamic>>;
+          _permissions = res[1] as Map<String, int>;
+        });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ErpApiClient.formatErrorMessage(e))),
-        );
+      try {
+        final List<Map<String, dynamic>> rows = await ErpApiClient.instance
+            .getList(
+              dt,
+              fields: const <String>['name', 'modified', 'owner', 'docstatus'],
+              limitPageLength: 80,
+            );
+        final Map<String, int> perms = await ErpApiClient.instance
+            .getDocTypePermissions(dt);
+        if (mounted) {
+          setState(() {
+            _records = rows;
+            _permissions = perms;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(ErpApiClient.formatErrorMessage(e))),
+          );
+        }
       }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _serverSearchRecords() async {
+    final String q = _searchQuery.trim();
+    if (q.isEmpty) {
+      await _loadRecords();
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final List<Map<String, dynamic>> rows = await ErpApiClient.instance
+          .searchDocTypeRecords(_selectedDocType, q);
+      if (mounted && rows.isNotEmpty) {
+        setState(() => _records = rows);
+      }
+    } catch (_) {
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -157,16 +223,19 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCreateGenericDocSheet,
-        icon: const Icon(Icons.add_rounded),
-        label: Text('New $_selectedDocType'),
-      ),
+      floatingActionButton: (_permissions['create'] ?? 1) == 1
+          ? FloatingActionButton.extended(
+              onPressed: _showCreateGenericDocSheet,
+              icon: const Icon(Icons.add_rounded),
+              label: Text('New $_selectedDocType'),
+            )
+          : null,
       body: Column(
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Row(
                   children: <Widget>[
@@ -212,6 +281,60 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
                     },
                   ),
                 ),
+                const SizedBox(height: 6),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: <Widget>[
+                      const Icon(
+                        Icons.verified_user_outlined,
+                        size: 14,
+                        color: Colors.teal,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Your ERP Access ($_selectedDocType): ',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      for (final String permKey in <String>[
+                        'read',
+                        'write',
+                        'create',
+                        'submit',
+                        'cancel',
+                        'delete',
+                      ])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: (_permissions[permKey] ?? 0) == 1
+                                  ? Colors.green.withValues(alpha: 0.14)
+                                  : Colors.grey.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${(_permissions[permKey] ?? 0) == 1 ? '✓' : '✗'} ${permKey.toUpperCase()}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: (_permissions[permKey] ?? 0) == 1
+                                    ? Colors.green.shade800
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -220,6 +343,7 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
                 'Search $_selectedDocType records (ID, owner, modified date)...',
             query: _searchQuery,
             onQueryChanged: (String v) => setState(() => _searchQuery = v),
+            onServerSearch: _serverSearchRecords,
             filters: const <String>['All', 'Submitted', 'Draft', 'Cancelled'],
             selectedFilter: _statusFilter,
             onFilterChanged: (String f) => setState(() => _statusFilter = f),

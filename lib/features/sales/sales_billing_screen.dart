@@ -243,12 +243,38 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Text(
-                      'New $doctype',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            'New $doctype',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: doctype,
+                              initialValues: <String, dynamic>{
+                                if (session != null) 'company': session.company,
+                                if (doctype == 'Quotation')
+                                  'party_name': customerCtrl.text.trim()
+                                else
+                                  'customer': customerCtrl.text.trim(),
+                              },
+                              onCreated: _loadSalesData,
+                            );
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     // Replicates DIBL's `custom_search_by_mobile` Client Script
@@ -552,6 +578,17 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sales, Billing & Accounts'),
+        actions: <Widget>[
+          TextButton.icon(
+            icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+            label: const Text('+ Customer'),
+            onPressed: () => ErpDocSheet.showCreate(
+              context,
+              doctype: 'Customer',
+              onCreated: _loadSalesData,
+            ),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
@@ -1114,9 +1151,36 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  const Text(
-                    'New Payment Entry',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      const Expanded(
+                        child: Text(
+                          'New Payment Entry',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.tune_rounded, size: 16),
+                        label: const Text('All ERP Fields'),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          ErpDocSheet.showCreate(
+                            this.context,
+                            doctype: 'Payment Entry',
+                            initialValues: <String, dynamic>{
+                              if (session != null) 'company': session.company,
+                              'payment_type': paymentType,
+                              'party': partyCtrl.text.trim(),
+                            },
+                            onCreated: _loadSalesData,
+                          );
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -1278,12 +1342,35 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'New Journal Entry (JV)',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Expanded(
+                          child: Text(
+                            'New Journal Entry (JV)',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Journal Entry',
+                              initialValues: <String, dynamic>{
+                                if (session != null) 'company': session.company,
+                                'voucher_type': 'Journal Entry',
+                              },
+                              onCreated: _loadSalesData,
+                            );
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     if (_accounts.isNotEmpty) ...<Widget>[

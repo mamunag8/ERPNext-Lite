@@ -19,17 +19,18 @@ class CrmAndTasksScreen extends StatefulWidget {
 class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final TextEditingController _leadSearchCtrl = TextEditingController();
-  final TextEditingController _dealSearchCtrl = TextEditingController();
 
   bool _loading = false;
   bool _usingFcrm = true;
 
+  String _leadQuery = '';
   String _selectedLeadStage = 'All';
+  String _dealQuery = '';
   String _selectedDealStage = 'All';
   String _crmTaskQuery = '';
   String _crmTaskStatusFilter = 'All';
   String _crmNoteQuery = '';
+  String _crmNoteFilter = 'All';
 
   List<Map<String, dynamic>> _leads = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _deals = <Map<String, dynamic>>[];
@@ -72,8 +73,6 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
   @override
   void dispose() {
     _tabController.dispose();
-    _leadSearchCtrl.dispose();
-    _dealSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -880,6 +879,19 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                             );
                           },
                         ),
+                        FilledButton.tonalIcon(
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showViewAndEdit(
+                              this.context,
+                              doctype: doctype,
+                              docname: docName,
+                              onSaved: _loadCrmData,
+                            );
+                          },
+                        ),
                         if (isLead)
                           FilledButton.icon(
                             icon: const Icon(
@@ -1083,12 +1095,34 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Text(
-                      _usingFcrm ? 'New CRM Lead (FCRM)' : 'New ERPNext Lead',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            _usingFcrm
+                                ? 'New CRM Lead (FCRM)'
+                                : 'New ERPNext Lead',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: _usingFcrm ? 'CRM Lead' : 'Lead',
+                              initialValues: <String, dynamic>{'status': stage},
+                              onCreated: _loadCrmData,
+                            );
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -1245,14 +1279,36 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  Text(
-                    _usingFcrm
-                        ? 'New CRM Deal (FCRM)'
-                        : 'New ERPNext Opportunity',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          _usingFcrm
+                              ? 'New CRM Deal (FCRM)'
+                              : 'New ERPNext Opportunity',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.tune_rounded, size: 16),
+                        label: const Text('All ERP Fields'),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          ErpDocSheet.showCreate(
+                            this.context,
+                            doctype: _usingFcrm ? 'CRM Deal' : 'Opportunity',
+                            initialValues: <String, dynamic>{
+                              'status': _usingFcrm ? stage : 'Open',
+                            },
+                            onCreated: _loadCrmData,
+                          );
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -1388,9 +1444,38 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  const Text(
-                    'Schedule Follow-up ToDo & CRM Task',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      const Expanded(
+                        child: Text(
+                          'Schedule Follow-up ToDo & CRM Task',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.tune_rounded, size: 16),
+                        label: const Text('All ERP Fields'),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          ErpDocSheet.showCreate(
+                            this.context,
+                            doctype: _usingFcrm ? 'CRM Task' : 'ToDo',
+                            initialValues: <String, dynamic>{
+                              'priority': priority,
+                              'reference_doctype': ?referenceDocType,
+                              'reference_docname': ?referenceName,
+                              'reference_type': ?referenceDocType,
+                              'reference_name': ?referenceName,
+                            },
+                            onCreated: _loadCrmData,
+                          );
+                        },
+                      ),
+                    ],
                   ),
                   if (referenceName != null)
                     Text(
@@ -1593,7 +1678,6 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
   }
 
   Widget _buildLeadsTab() {
-    final String query = _leadSearchCtrl.text.trim().toLowerCase();
     final List<Map<String, dynamic>> filteredLeads = _leads.where((
       Map<String, dynamic> l,
     ) {
@@ -1601,13 +1685,7 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
       if (_selectedLeadStage != 'All' && status != _selectedLeadStage) {
         return false;
       }
-      if (query.isNotEmpty) {
-        final String text =
-            '${l['lead_name'] ?? ''} ${l['first_name'] ?? ''} ${l['organization'] ?? ''} ${l['company_name'] ?? ''} ${l['mobile_no'] ?? ''}'
-                .toLowerCase();
-        return text.contains(query);
-      }
-      return true;
+      return ErpSearchBar.matchesQuery(l, _leadQuery);
     }).toList();
 
     return Scaffold(
@@ -1616,267 +1694,236 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
         icon: const Icon(Icons.person_add_rounded),
         label: const Text('New Lead'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadCrmData,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
-          children: <Widget>[
-            // Pipeline Stage Filter Strip
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText: 'Search Lead by name, organization, mobile, or email...',
+            query: _leadQuery,
+            onQueryChanged: (String v) => setState(() => _leadQuery = v),
+            filters: <String>['All', ..._leadPipelineStages],
+            selectedFilter: _selectedLeadStage,
+            onFilterChanged: (String f) =>
+                setState(() => _selectedLeadStage = f),
+            resultCount: filteredLeads.length,
+            totalCount: _leads.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadCrmData,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
                 children: <Widget>[
-                  ChoiceChip(
-                    label: Text('All (${_leads.length})'),
-                    selected: _selectedLeadStage == 'All',
-                    onSelected: (_) =>
-                        setState(() => _selectedLeadStage = 'All'),
-                  ),
-                  const SizedBox(width: 6),
-                  ..._leadPipelineStages.map((String st) {
-                    final int count = _leads
-                        .where(
-                          (Map<String, dynamic> l) =>
-                              (l['status'] ?? 'New') == st,
-                        )
-                        .length;
-                    final bool selected = _selectedLeadStage == st;
-                    final Color c = _stageColor(st);
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: ChoiceChip(
-                        label: Text(
-                          '$st ($count)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: selected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: selected ? c : null,
+                  if (filteredLeads.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Center(
+                          child: Text('No leads match this filter.'),
+                        ),
+                      ),
+                    )
+                  else
+                    ...filteredLeads.map((Map<String, dynamic> l) {
+                      final String docName = (l['name'] ?? '').toString();
+                      final String title =
+                          (l['lead_name'] ??
+                                  l['first_name'] ??
+                                  l['organization'] ??
+                                  docName)
+                              .toString();
+                      final String org =
+                          (l['organization'] ?? l['company_name'] ?? '')
+                              .toString();
+                      final String mobile = (l['mobile_no'] ?? '').toString();
+                      final String status = (l['status'] ?? 'New').toString();
+                      final String nextStage = _nextLeadStage(status);
+                      final Color stColor = _stageColor(status);
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: stColor.withValues(alpha: 0.3),
                           ),
                         ),
-                        selected: selected,
-                        selectedColor: c.withValues(alpha: 0.18),
-                        onSelected: (_) =>
-                            setState(() => _selectedLeadStage = st),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            // Search Box
-            TextField(
-              controller: _leadSearchCtrl,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Search Lead by name, organization, or mobile...',
-                prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            if (filteredLeads.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Center(child: Text('No leads match this filter.')),
-                ),
-              )
-            else
-              ...filteredLeads.map((Map<String, dynamic> l) {
-                final String docName = (l['name'] ?? '').toString();
-                final String title =
-                    (l['lead_name'] ??
-                            l['first_name'] ??
-                            l['organization'] ??
-                            docName)
-                        .toString();
-                final String org =
-                    (l['organization'] ?? l['company_name'] ?? '').toString();
-                final String mobile = (l['mobile_no'] ?? '').toString();
-                final String status = (l['status'] ?? 'New').toString();
-                final String nextStage = _nextLeadStage(status);
-                final Color stColor = _stageColor(status);
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: stColor.withValues(alpha: 0.3)),
-                  ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () =>
-                        _showCrm360MaintenanceSheet(record: l, isLead: true),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              CircleAvatar(
-                                radius: 18,
-                                backgroundColor: stColor.withValues(
-                                  alpha: 0.14,
-                                ),
-                                child: Icon(
-                                  Icons.person_search_rounded,
-                                  color: stColor,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => _showCrm360MaintenanceSheet(
+                            record: l,
+                            isLead: true,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Row(
                                   children: <Widget>[
-                                    Text(
-                                      title,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
+                                    CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: stColor.withValues(
+                                        alpha: 0.14,
+                                      ),
+                                      child: Icon(
+                                        Icons.person_search_rounded,
+                                        color: stColor,
+                                        size: 20,
                                       ),
                                     ),
-                                    Text(
-                                      '${org.isNotEmpty ? '$org • ' : ''}$docName${mobile.isNotEmpty ? ' • $mobile' : ''}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          Text(
+                                            title,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                          Text(
+                                            '${org.isNotEmpty ? '$org • ' : ''}$docName${mobile.isNotEmpty ? ' • $mobile' : ''}',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: stColor.withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        status,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: stColor,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: stColor.withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  status,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: stColor,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 18),
-                          // Guided 1-Tap Maintenance Steps Bar
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: <Widget>[
-                                if (mobile.isNotEmpty) ...<Widget>[
-                                  _buildMaintenanceActionPill(
-                                    icon: Icons.phone_in_talk_rounded,
-                                    label: '1. Call',
-                                    color: Colors.green.shade700,
-                                    onTap: () =>
-                                        launchUrl(Uri.parse('tel:$mobile')),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  _buildMaintenanceActionPill(
-                                    icon: Icons.chat_rounded,
-                                    label: 'WhatsApp',
-                                    color: Colors.teal.shade700,
-                                    onTap: () {
-                                      final String clean = mobile.replaceAll(
-                                        RegExp(r'\D'),
-                                        '',
-                                      );
-                                      launchUrl(
-                                        Uri.parse('https://wa.me/$clean'),
-                                        mode: LaunchMode.externalApplication,
-                                      );
-                                    },
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                if (status != 'Converted') ...<Widget>[
-                                  _buildMaintenanceActionPill(
-                                    icon: Icons.fast_forward_rounded,
-                                    label: '2. Move → $nextStage',
-                                    color: _stageColor(nextStage),
-                                    onTap: () => _updateRecordStatus(
-                                      doctype: _usingFcrm ? 'CRM Lead' : 'Lead',
-                                      name: docName,
-                                      newStatus: nextStage,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                _buildMaintenanceActionPill(
-                                  icon: Icons.note_add_rounded,
-                                  label: '3. + Note',
-                                  color: Colors.indigo,
-                                  onTap: () => _showQuickCrmNoteSheet(
-                                    referenceDocType: _usingFcrm
-                                        ? 'CRM Lead'
-                                        : 'Lead',
-                                    referenceName: docName,
-                                    displayName: title,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                _buildMaintenanceActionPill(
-                                  icon: Icons.add_task_rounded,
-                                  label: '4. + ToDo',
-                                  color: Colors.deepOrange,
-                                  onTap: () => _showCreateTodoSheet(
-                                    referenceDocType: _usingFcrm
-                                        ? 'CRM Lead'
-                                        : 'Lead',
-                                    referenceName: docName,
-                                    prefillTitle: 'Follow up with $title',
-                                  ),
-                                ),
-                                if (status != 'Converted') ...<Widget>[
-                                  const SizedBox(width: 6),
-                                  _buildMaintenanceActionPill(
-                                    icon: Icons.rocket_launch_rounded,
-                                    label: '5. Convert → Deal',
-                                    color: Colors.purple.shade700,
-                                    onTap: () => _convertLeadToDeal(l),
-                                  ),
-                                ],
-                                const SizedBox(width: 6),
-                                _buildMaintenanceActionPill(
-                                  icon: Icons.edit_note_rounded,
-                                  label: 'Edit All Fields',
-                                  color: Colors.blueGrey.shade700,
-                                  onTap: () => ErpDocSheet.showViewAndEdit(
-                                    context,
-                                    doctype: _usingFcrm ? 'CRM Lead' : 'Lead',
-                                    docname: docName,
-                                    onSaved: _loadCrmData,
+                                const Divider(height: 18),
+                                // Guided 1-Tap Maintenance Steps Bar
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: <Widget>[
+                                      if (mobile.isNotEmpty) ...<Widget>[
+                                        _buildMaintenanceActionPill(
+                                          icon: Icons.phone_in_talk_rounded,
+                                          label: '1. Call',
+                                          color: Colors.green.shade700,
+                                          onTap: () => launchUrl(
+                                            Uri.parse('tel:$mobile'),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        _buildMaintenanceActionPill(
+                                          icon: Icons.chat_rounded,
+                                          label: 'WhatsApp',
+                                          color: Colors.teal.shade700,
+                                          onTap: () {
+                                            final String clean = mobile
+                                                .replaceAll(RegExp(r'\D'), '');
+                                            launchUrl(
+                                              Uri.parse('https://wa.me/$clean'),
+                                              mode: LaunchMode
+                                                  .externalApplication,
+                                            );
+                                          },
+                                        ),
+                                        const SizedBox(width: 6),
+                                      ],
+                                      if (status != 'Converted') ...<Widget>[
+                                        _buildMaintenanceActionPill(
+                                          icon: Icons.fast_forward_rounded,
+                                          label: '2. Move → $nextStage',
+                                          color: _stageColor(nextStage),
+                                          onTap: () => _updateRecordStatus(
+                                            doctype: _usingFcrm
+                                                ? 'CRM Lead'
+                                                : 'Lead',
+                                            name: docName,
+                                            newStatus: nextStage,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                      ],
+                                      _buildMaintenanceActionPill(
+                                        icon: Icons.note_add_rounded,
+                                        label: '3. + Note',
+                                        color: Colors.indigo,
+                                        onTap: () => _showQuickCrmNoteSheet(
+                                          referenceDocType: _usingFcrm
+                                              ? 'CRM Lead'
+                                              : 'Lead',
+                                          referenceName: docName,
+                                          displayName: title,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      _buildMaintenanceActionPill(
+                                        icon: Icons.add_task_rounded,
+                                        label: '4. + ToDo',
+                                        color: Colors.deepOrange,
+                                        onTap: () => _showCreateTodoSheet(
+                                          referenceDocType: _usingFcrm
+                                              ? 'CRM Lead'
+                                              : 'Lead',
+                                          referenceName: docName,
+                                          prefillTitle: 'Follow up with $title',
+                                        ),
+                                      ),
+                                      if (status != 'Converted') ...<Widget>[
+                                        const SizedBox(width: 6),
+                                        _buildMaintenanceActionPill(
+                                          icon: Icons.rocket_launch_rounded,
+                                          label: '5. Convert → Deal',
+                                          color: Colors.purple.shade700,
+                                          onTap: () => _convertLeadToDeal(l),
+                                        ),
+                                      ],
+                                      const SizedBox(width: 6),
+                                      _buildMaintenanceActionPill(
+                                        icon: Icons.edit_note_rounded,
+                                        label: 'Edit All Fields',
+                                        color: Colors.blueGrey.shade700,
+                                        onTap: () =>
+                                            ErpDocSheet.showViewAndEdit(
+                                              context,
+                                              doctype: _usingFcrm
+                                                  ? 'CRM Lead'
+                                                  : 'Lead',
+                                              docname: docName,
+                                              onSaved: _loadCrmData,
+                                            ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-          ],
-        ),
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1884,7 +1931,6 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
   Widget _buildDealsTab() {
     final UserSession? session = ErpApiClient.instance.session;
     final String sym = session?.currencySymbol ?? '৳';
-    final String query = _dealSearchCtrl.text.trim().toLowerCase();
 
     final List<Map<String, dynamic>> filteredDeals = _deals.where((
       Map<String, dynamic> d,
@@ -1893,13 +1939,7 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
       if (_selectedDealStage != 'All' && status != _selectedDealStage) {
         return false;
       }
-      if (query.isNotEmpty) {
-        final String text =
-            '${d['organization'] ?? ''} ${d['customer_name'] ?? ''} ${d['party_name'] ?? ''} ${d['name'] ?? ''}'
-                .toLowerCase();
-        return text.contains(query);
-      }
-      return true;
+      return ErpSearchBar.matchesQuery(d, _dealQuery);
     }).toList();
 
     return Scaffold(
@@ -1908,253 +1948,221 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
         icon: const Icon(Icons.add_business_rounded),
         label: const Text('New Deal'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadCrmData,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
-          children: <Widget>[
-            // Deal Pipeline Stage Filter Strip
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText:
+                'Search Deal / Opportunity by organization, owner, or ID...',
+            query: _dealQuery,
+            onQueryChanged: (String v) => setState(() => _dealQuery = v),
+            filters: <String>['All', ..._dealPipelineStages],
+            selectedFilter: _selectedDealStage,
+            onFilterChanged: (String f) =>
+                setState(() => _selectedDealStage = f),
+            resultCount: filteredDeals.length,
+            totalCount: _deals.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadCrmData,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
                 children: <Widget>[
-                  ChoiceChip(
-                    label: Text('All (${_deals.length})'),
-                    selected: _selectedDealStage == 'All',
-                    onSelected: (_) =>
-                        setState(() => _selectedDealStage = 'All'),
-                  ),
-                  const SizedBox(width: 6),
-                  ..._dealPipelineStages.map((String st) {
-                    final int count = _deals
-                        .where(
-                          (Map<String, dynamic> d) => (d['status'] ?? '') == st,
-                        )
-                        .length;
-                    final bool selected = _selectedDealStage == st;
-                    final Color c = _stageColor(st);
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: ChoiceChip(
-                        label: Text(
-                          '$st ($count)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: selected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: selected ? c : null,
+                  if (filteredDeals.isEmpty)
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Center(
+                          child: Text(
+                            'No Deals / Opportunities match this filter.',
                           ),
                         ),
-                        selected: selected,
-                        selectedColor: c.withValues(alpha: 0.18),
-                        onSelected: (_) =>
-                            setState(() => _selectedDealStage = st),
                       ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
+                    )
+                  else
+                    ...filteredDeals.map((Map<String, dynamic> d) {
+                      final String docName = (d['name'] ?? '').toString();
+                      final String org =
+                          (d['organization'] ??
+                                  d['customer_name'] ??
+                                  d['party_name'] ??
+                                  docName)
+                              .toString();
+                      final String status = (d['status'] ?? 'Qualification')
+                          .toString();
+                      final String nextStage = _nextDealStage(status);
+                      final Color stColor = _stageColor(status);
+                      final double val =
+                          ((d['deal_value'] ?? d['opportunity_amount'] ?? 0)
+                                  as num?)
+                              ?.toDouble() ??
+                          0;
 
-            TextField(
-              controller: _dealSearchCtrl,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Search Deal / Organization...',
-                prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            if (filteredDeals.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Center(
-                    child: Text('No Deals / Opportunities match this filter.'),
-                  ),
-                ),
-              )
-            else
-              ...filteredDeals.map((Map<String, dynamic> d) {
-                final String docName = (d['name'] ?? '').toString();
-                final String org =
-                    (d['organization'] ??
-                            d['customer_name'] ??
-                            d['party_name'] ??
-                            docName)
-                        .toString();
-                final String status = (d['status'] ?? 'Qualification')
-                    .toString();
-                final String nextStage = _nextDealStage(status);
-                final Color stColor = _stageColor(status);
-                final double val =
-                    ((d['deal_value'] ?? d['opportunity_amount'] ?? 0) as num?)
-                        ?.toDouble() ??
-                    0;
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: stColor.withValues(alpha: 0.3)),
-                  ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () =>
-                        _showCrm360MaintenanceSheet(record: d, isLead: false),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              CircleAvatar(
-                                radius: 18,
-                                backgroundColor: stColor.withValues(
-                                  alpha: 0.14,
-                                ),
-                                child: Icon(
-                                  Icons.monetization_on_rounded,
-                                  color: stColor,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: stColor.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => _showCrm360MaintenanceSheet(
+                            record: d,
+                            isLead: false,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Row(
                                   children: <Widget>[
-                                    Text(
-                                      org,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
+                                    CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: stColor.withValues(
+                                        alpha: 0.14,
+                                      ),
+                                      child: Icon(
+                                        Icons.monetization_on_rounded,
+                                        color: stColor,
+                                        size: 20,
                                       ),
                                     ),
-                                    Text(
-                                      '$docName • Value: $sym${NumberFormat('#,##0').format(val)}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          Text(
+                                            org,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                          Text(
+                                            '$docName • Value: $sym${NumberFormat('#,##0').format(val)}',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: stColor.withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        status,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: stColor,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: stColor.withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  status,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: stColor,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 18),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: <Widget>[
-                                if (status != 'Won' &&
-                                    status != 'Lost') ...<Widget>[
-                                  _buildMaintenanceActionPill(
-                                    icon: Icons.fast_forward_rounded,
-                                    label: '1. Advance → $nextStage',
-                                    color: _stageColor(nextStage),
-                                    onTap: () => _updateRecordStatus(
-                                      doctype: _usingFcrm
-                                          ? 'CRM Deal'
-                                          : 'Opportunity',
-                                      name: docName,
-                                      newStatus: nextStage,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                _buildMaintenanceActionPill(
-                                  icon: Icons.note_add_rounded,
-                                  label: '2. + Note',
-                                  color: Colors.indigo,
-                                  onTap: () => _showQuickCrmNoteSheet(
-                                    referenceDocType: _usingFcrm
-                                        ? 'CRM Deal'
-                                        : 'Opportunity',
-                                    referenceName: docName,
-                                    displayName: org,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                _buildMaintenanceActionPill(
-                                  icon: Icons.add_task_rounded,
-                                  label: '3. + ToDo',
-                                  color: Colors.deepOrange,
-                                  onTap: () => _showCreateTodoSheet(
-                                    referenceDocType: _usingFcrm
-                                        ? 'CRM Deal'
-                                        : 'Opportunity',
-                                    referenceName: docName,
-                                    prefillTitle: 'Follow up Deal: $org',
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                if (status != 'Won') ...<Widget>[
-                                  _buildMaintenanceActionPill(
-                                    icon: Icons.emoji_events_rounded,
-                                    label: 'Mark Won',
-                                    color: Colors.green.shade700,
-                                    onTap: () => _updateRecordStatus(
-                                      doctype: _usingFcrm
-                                          ? 'CRM Deal'
-                                          : 'Opportunity',
-                                      name: docName,
-                                      newStatus: 'Won',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                _buildMaintenanceActionPill(
-                                  icon: Icons.edit_note_rounded,
-                                  label: 'Edit All Fields',
-                                  color: Colors.blueGrey.shade700,
-                                  onTap: () => ErpDocSheet.showViewAndEdit(
-                                    context,
-                                    doctype: _usingFcrm
-                                        ? 'CRM Deal'
-                                        : 'Opportunity',
-                                    docname: docName,
-                                    onSaved: _loadCrmData,
+                                const Divider(height: 18),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: <Widget>[
+                                      if (status != 'Won' &&
+                                          status != 'Lost') ...<Widget>[
+                                        _buildMaintenanceActionPill(
+                                          icon: Icons.fast_forward_rounded,
+                                          label: '1. Advance → $nextStage',
+                                          color: _stageColor(nextStage),
+                                          onTap: () => _updateRecordStatus(
+                                            doctype: _usingFcrm
+                                                ? 'CRM Deal'
+                                                : 'Opportunity',
+                                            name: docName,
+                                            newStatus: nextStage,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                      ],
+                                      _buildMaintenanceActionPill(
+                                        icon: Icons.note_add_rounded,
+                                        label: '2. + Note',
+                                        color: Colors.indigo,
+                                        onTap: () => _showQuickCrmNoteSheet(
+                                          referenceDocType: _usingFcrm
+                                              ? 'CRM Deal'
+                                              : 'Opportunity',
+                                          referenceName: docName,
+                                          displayName: org,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      _buildMaintenanceActionPill(
+                                        icon: Icons.add_task_rounded,
+                                        label: '3. + ToDo',
+                                        color: Colors.deepOrange,
+                                        onTap: () => _showCreateTodoSheet(
+                                          referenceDocType: _usingFcrm
+                                              ? 'CRM Deal'
+                                              : 'Opportunity',
+                                          referenceName: docName,
+                                          prefillTitle: 'Follow up Deal: $org',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      if (status != 'Won') ...<Widget>[
+                                        _buildMaintenanceActionPill(
+                                          icon: Icons.emoji_events_rounded,
+                                          label: 'Mark Won',
+                                          color: Colors.green.shade700,
+                                          onTap: () => _updateRecordStatus(
+                                            doctype: _usingFcrm
+                                                ? 'CRM Deal'
+                                                : 'Opportunity',
+                                            name: docName,
+                                            newStatus: 'Won',
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                      ],
+                                      _buildMaintenanceActionPill(
+                                        icon: Icons.edit_note_rounded,
+                                        label: 'Edit All Fields',
+                                        color: Colors.blueGrey.shade700,
+                                        onTap: () =>
+                                            ErpDocSheet.showViewAndEdit(
+                                              context,
+                                              doctype: _usingFcrm
+                                                  ? 'CRM Deal'
+                                                  : 'Opportunity',
+                                              docname: docName,
+                                              onSaved: _loadCrmData,
+                                            ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-          ],
-        ),
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2236,12 +2244,26 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
                 children: <Widget>[
                   if (filteredTasks.isNotEmpty) ...<Widget>[
-                    Text(
-                      'Frappe CRM Follow-up Tasks (${filteredTasks.length})',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        Text(
+                          'Frappe CRM Follow-up Tasks (${filteredTasks.length})',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.add_task_rounded, size: 16),
+                          label: const Text('+ CRM Task'),
+                          onPressed: () => ErpDocSheet.showCreate(
+                            context,
+                            doctype: 'CRM Task',
+                            onCreated: _loadCrmData,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     ...filteredTasks.map((Map<String, dynamic> t) {
@@ -2364,6 +2386,12 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
     final List<Map<String, dynamic>> filteredNotes = _notes.where((
       Map<String, dynamic> row,
     ) {
+      if (_crmNoteFilter != 'All') {
+        final String refDt = (row['reference_doctype'] ?? '').toString();
+        if (!refDt.toLowerCase().contains(_crmNoteFilter.toLowerCase())) {
+          return false;
+        }
+      }
       return ErpSearchBar.matchesQuery(row, _crmNoteQuery);
     }).toList();
 
@@ -2390,6 +2418,15 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
             hintText: 'Search CRM Notes (title, content, linked Lead/Deal, author)...',
             query: _crmNoteQuery,
             onQueryChanged: (String v) => setState(() => _crmNoteQuery = v),
+            filters: const <String>[
+              'All',
+              'Lead',
+              'Deal',
+              'Opportunity',
+              'ToDo',
+            ],
+            selectedFilter: _crmNoteFilter,
+            onFilterChanged: (String f) => setState(() => _crmNoteFilter = f),
             resultCount: filteredNotes.length,
             totalCount: _notes.length,
           ),

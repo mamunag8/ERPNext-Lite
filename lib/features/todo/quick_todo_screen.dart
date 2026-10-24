@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/erp_doc_sheet.dart';
 import '../../core/widgets/erp_search_bar.dart';
 
 class QuickTodoScreen extends StatefulWidget {
@@ -18,12 +19,12 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _quickInputCtrl = TextEditingController();
-  final TextEditingController _searchCtrl = TextEditingController();
 
   bool _loading = false;
   bool _addingQuick = false;
   String _quickPriority = 'Medium';
   DateTime _quickDueDate = DateTime.now();
+  String _todoQuery = '';
   String _statusFilter = 'Open'; // 'All', 'Open', 'Due Today', 'High', 'Closed'
   String _activityQuery = '';
   String _activityFilter = 'All';
@@ -58,7 +59,6 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
   void dispose() {
     _tabController.dispose();
     _quickInputCtrl.dispose();
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -465,12 +465,31 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'New Detailed ToDo & Activity Task',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Expanded(
+                          child: Text(
+                            'New Detailed ToDo & Activity Task',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'ToDo',
+                              onCreated: _loadTodosAndActivity,
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     TextField(
@@ -782,17 +801,12 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
     required int dueTodayCount,
     required int closedCount,
   }) {
-    final String query = _searchCtrl.text.trim().toLowerCase();
     final List<Map<String, dynamic>> filteredTodos = _todos.where((
       Map<String, dynamic> td,
     ) {
       final String status = (td['status'] ?? 'Open').toString();
       final String priority = (td['priority'] ?? 'Medium').toString();
       final String date = (td['date'] ?? '').toString();
-      final String desc = (td['description'] ?? '').toString().toLowerCase();
-      final String ref =
-          '${td['reference_type'] ?? ''} ${td['reference_name'] ?? ''}'
-              .toLowerCase();
 
       if (_statusFilter == 'Open' && status != 'Open') {
         return false;
@@ -808,463 +822,537 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
               (date.isNotEmpty && date.compareTo(todayStr) > 0))) {
         return false;
       }
-      if (query.isNotEmpty && !desc.contains(query) && !ref.contains(query)) {
-        return false;
-      }
-      return true;
+      return ErpSearchBar.matchesQuery(td, _todoQuery);
     }).toList();
 
-    return RefreshIndicator(
-      onRefresh: _loadTodosAndActivity,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
-        children: <Widget>[
-          // 1-Tap Instant Quick-Add ToDo Card
-          Card(
-            elevation: 0,
-            color: colors.primaryContainer.withValues(alpha: 0.4),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-              side: BorderSide(color: colors.primary.withValues(alpha: 0.25)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Row(
+    return Column(
+      children: <Widget>[
+        ErpSearchBar(
+          hintText: 'Search ToDos (description, priority, due date, linked record)...',
+          query: _todoQuery,
+          onQueryChanged: (String v) => setState(() => _todoQuery = v),
+          filters: const <String>['All', 'Open', 'High', 'Due Today', 'Closed'],
+          selectedFilter: _statusFilter,
+          onFilterChanged: (String f) => setState(() => _statusFilter = f),
+          resultCount: filteredTodos.length,
+          totalCount: _todos.length,
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadTodosAndActivity,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+              children: <Widget>[
+                // 1-Tap Instant Quick-Add ToDo Card
+                Card(
+                  elevation: 0,
+                  color: colors.primaryContainer.withValues(alpha: 0.4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    side: BorderSide(
+                      color: colors.primary.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Icon(
+                              Icons.bolt_rounded,
+                              color: colors.primary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Quick Add To-Do',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const Spacer(),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () async {
+                                final DateTime? p = await showDatePicker(
+                                  context: context,
+                                  initialDate: _quickDueDate,
+                                  firstDate: DateTime(2024),
+                                  lastDate: DateTime(2030),
+                                );
+                                if (p != null) {
+                                  setState(() => _quickDueDate = p);
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                child: Row(
+                                  children: <Widget>[
+                                    const Icon(Icons.calendar_today, size: 13),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      DateFormat('MMM dd')
+                                          .format(_quickDueDate),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: TextField(
+                                controller: _quickInputCtrl,
+                                onSubmitted: (_) => _submitInlineQuickTodo(),
+                                decoration: InputDecoration(
+                                  hintText: 'What needs to be done? (e.g. Call client, Check stock)...',
+                                  filled: true,
+                                  fillColor: colors.surface,
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton(
+                              onPressed: _addingQuick
+                                  ? null
+                                  : _submitInlineQuickTodo,
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: _addingQuick
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text('Add'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: <Widget>[
+                            const Text(
+                              'Priority:',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ...const <String>['High', 'Medium', 'Low'].map((
+                              String p,
+                            ) {
+                              final bool selected = _quickPriority == p;
+                              final Color c = _priorityColor(p);
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: ChoiceChip(
+                                  label: Text(
+                                    p,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: selected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                  selected: selected,
+                                  visualDensity: VisualDensity.compact,
+                                  selectedColor: c.withValues(alpha: 0.2),
+                                  onSelected: (_) {
+                                    setState(() => _quickPriority = p);
+                                  },
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Filter Chips Bar
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
                     children: <Widget>[
-                      Icon(Icons.bolt_rounded, color: colors.primary, size: 20),
+                      _buildFilterChip(
+                        'Open',
+                        'Open ($openCount)',
+                        Colors.teal,
+                      ),
                       const SizedBox(width: 6),
-                      const Text(
-                        'Quick Add To-Do',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                      _buildFilterChip(
+                        'High',
+                        'High Priority ($highCount)',
+                        Colors.red,
+                      ),
+                      const SizedBox(width: 6),
+                      _buildFilterChip(
+                        'Due Today',
+                        'Due / Overdue ($dueTodayCount)',
+                        Colors.orange.shade800,
+                      ),
+                      const SizedBox(width: 6),
+                      _buildFilterChip(
+                        'Closed',
+                        'Completed ($closedCount)',
+                        Colors.green,
+                      ),
+                      const SizedBox(width: 6),
+                      _buildFilterChip(
+                        'All',
+                        'All (${_todos.length})',
+                        colors.primary,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                if (filteredTodos.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(
+                        child: Text(
+                          'No matching ToDo tasks. Use the Quick Add bar above to add one in 1 tap!',
+                          textAlign: TextAlign.center,
                         ),
                       ),
-                      const Spacer(),
-                      InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () async {
-                          final DateTime? p = await showDatePicker(
-                            context: context,
-                            initialDate: _quickDueDate,
-                            firstDate: DateTime(2024),
-                            lastDate: DateTime(2030),
-                          );
-                          if (p != null) {
-                            setState(() => _quickDueDate = p);
-                          }
-                        },
+                    ),
+                  )
+                else
+                  ...filteredTodos.map((Map<String, dynamic> td) {
+                    final String name = (td['name'] ?? '').toString();
+                    final String rawDesc = (td['description'] ?? name)
+                        .toString()
+                        .replaceAll(RegExp(r'<[^>]*>'), '');
+                    final String status = (td['status'] ?? 'Open').toString();
+                    final bool isClosed = status == 'Closed';
+                    final String priority = (td['priority'] ?? 'Medium')
+                        .toString();
+                    final Color pColor = _priorityColor(priority);
+                    final String dueDate = (td['date'] ?? '').toString();
+                    final String refType = (td['reference_type'] ?? '')
+                        .toString();
+                    final String refName = (td['reference_name'] ?? '')
+                        .toString();
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                          color: isClosed
+                              ? Colors.grey.withValues(alpha: 0.2)
+                              : pColor.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: name.isEmpty
+                            ? null
+                            : () => ErpDocSheet.showViewAndEdit(
+                                context,
+                                doctype: 'ToDo',
+                                docname: name,
+                                onSaved: _loadTodosAndActivity,
+                              ),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          child: Row(
+                          padding: const EdgeInsets.fromLTRB(8, 10, 12, 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              const Icon(Icons.calendar_today, size: 13),
-                              const SizedBox(width: 4),
-                              Text(
-                                DateFormat('MMM dd').format(_quickDueDate),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Checkbox(
+                                    value: isClosed,
+                                    activeColor: Colors.green,
+                                    onChanged: (_) => _toggleTodoStatus(td),
+                                  ),
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          Text(
+                                            rawDesc,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              decoration: isClosed
+                                                  ? TextDecoration.lineThrough
+                                                  : null,
+                                              color: isClosed
+                                                  ? Colors.grey
+                                                  : null,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 4,
+                                            children: <Widget>[
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: pColor.withValues(
+                                                    alpha: 0.12,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  priority,
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: pColor,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (dueDate.isNotEmpty)
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 2,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: colors
+                                                        .surfaceContainerHighest
+                                                        .withValues(alpha: 0.6),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    'Due: $dueDate',
+                                                    style: const TextStyle(
+                                                      fontSize: 10,
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (refType.isNotEmpty &&
+                                                  refName.isNotEmpty)
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 2,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.indigo
+                                                        .withValues(alpha: 0.1),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    '$refType: $refName',
+                                                    style: const TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Colors.indigo,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 14),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: <Widget>[
+                                  TextButton.icon(
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.edit_note_rounded,
+                                      size: 16,
+                                    ),
+                                    label: const Text(
+                                      'Edit',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                    onPressed: () =>
+                                        ErpDocSheet.showViewAndEdit(
+                                          context,
+                                          doctype: 'ToDo',
+                                          docname: name,
+                                          onSaved: _loadTodosAndActivity,
+                                        ),
+                                  ),
+                                  TextButton.icon(
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.history_edu_rounded,
+                                      size: 16,
+                                    ),
+                                    label: const Text(
+                                      'Log Activity',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                    onPressed: () => _showLogActivitySheet(
+                                      referenceDocType: 'ToDo',
+                                      referenceName: name,
+                                      taskTitle: rawDesc,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  FilledButton.tonalIcon(
+                                    style: FilledButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    icon: Icon(
+                                      isClosed
+                                          ? Icons.replay_rounded
+                                          : Icons.check_rounded,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      isClosed ? 'Reopen' : 'Done',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    onPressed: () => _toggleTodoStatus(td),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
+                    );
+                  }),
+
+                if (_crmTasks.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 16),
                   Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextField(
-                          controller: _quickInputCtrl,
-                          onSubmitted: (_) => _submitInlineQuickTodo(),
-                          decoration: InputDecoration(
-                            hintText: 'What needs to be done? (e.g. Call client, Check stock)...',
-                            filled: true,
-                            fillColor: colors.surface,
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: _addingQuick ? null : _submitInlineQuickTodo,
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: _addingQuick
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('Add'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: <Widget>[
                       const Text(
-                        'Priority:',
-                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                        'Synced Frappe CRM Tasks',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      ...const <String>['High', 'Medium', 'Low'].map((
-                        String p,
-                      ) {
-                        final bool selected = _quickPriority == p;
-                        final Color c = _priorityColor(p);
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: ChoiceChip(
-                            label: Text(
-                              p,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: selected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                            selected: selected,
-                            visualDensity: VisualDensity.compact,
-                            selectedColor: c.withValues(alpha: 0.2),
-                            onSelected: (_) {
-                              setState(() => _quickPriority = p);
-                            },
-                          ),
-                        );
-                      }),
+                      TextButton.icon(
+                        onPressed: () => ErpDocSheet.showCreate(
+                          context,
+                          doctype: 'CRM Task',
+                          onCreated: _loadTodosAndActivity,
+                        ),
+                        icon: const Icon(Icons.add_circle_outline, size: 16),
+                        label: const Text('+ CRM Task'),
+                      ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  ..._crmTasks.map((Map<String, dynamic> t) {
+                    final String docName = (t['name'] ?? '').toString();
+                    final String status = (t['status'] ?? 'Todo').toString();
+                    final bool done = status == 'Done' || status == 'Completed';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        onTap: docName.isEmpty
+                            ? null
+                            : () => ErpDocSheet.showViewAndEdit(
+                                context,
+                                doctype: 'CRM Task',
+                                docname: docName,
+                                onSaved: _loadTodosAndActivity,
+                              ),
+                        leading: Icon(
+                          done
+                              ? Icons.check_circle_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          color: done ? Colors.green : Colors.orange,
+                        ),
+                        title: Text(
+                          (t['title'] ?? docName).toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          'Priority: ${t['priority'] ?? 'Medium'} • Due: ${t['due_date'] ?? 'N/A'}',
+                        ),
+                        trailing: TextButton(
+                          onPressed: () async {
+                            final String nextStatus = done ? 'Todo' : 'Done';
+                            try {
+                              await ErpApiClient.instance.updateDoc(
+                                'CRM Task',
+                                docName,
+                                <String, dynamic>{'status': nextStatus},
+                              );
+                              await _loadTodosAndActivity();
+                            } catch (_) {}
+                          },
+                          child: Text(done ? 'Reopen' : 'Mark Done'),
+                        ),
+                      ),
+                    );
+                  }),
                 ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Filter Chips Bar
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: <Widget>[
-                _buildFilterChip('Open', 'Open ($openCount)', Colors.teal),
-                const SizedBox(width: 6),
-                _buildFilterChip(
-                  'High',
-                  'High Priority ($highCount)',
-                  Colors.red,
-                ),
-                const SizedBox(width: 6),
-                _buildFilterChip(
-                  'Due Today',
-                  'Due / Overdue ($dueTodayCount)',
-                  Colors.orange.shade800,
-                ),
-                const SizedBox(width: 6),
-                _buildFilterChip(
-                  'Closed',
-                  'Completed ($closedCount)',
-                  Colors.green,
-                ),
-                const SizedBox(width: 6),
-                _buildFilterChip(
-                  'All',
-                  'All (${_todos.length})',
-                  colors.primary,
-                ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
-
-          // Search Box
-          TextField(
-            controller: _searchCtrl,
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              hintText: 'Search ToDos or linked Lead/Deal/Project...',
-              prefixIcon: const Icon(Icons.search_rounded, size: 20),
-              suffixIcon: _searchCtrl.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear_rounded, size: 18),
-                      onPressed: () {
-                        _searchCtrl.clear();
-                        setState(() {});
-                      },
-                    )
-                  : null,
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          if (filteredTodos.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Center(
-                  child: Text(
-                    'No matching ToDo tasks. Use the Quick Add bar above to add one in 1 tap!',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-            )
-          else
-            ...filteredTodos.map((Map<String, dynamic> td) {
-              final String name = (td['name'] ?? '').toString();
-              final String rawDesc = (td['description'] ?? name)
-                  .toString()
-                  .replaceAll(RegExp(r'<[^>]*>'), '');
-              final String status = (td['status'] ?? 'Open').toString();
-              final bool isClosed = status == 'Closed';
-              final String priority = (td['priority'] ?? 'Medium').toString();
-              final Color pColor = _priorityColor(priority);
-              final String dueDate = (td['date'] ?? '').toString();
-              final String refType = (td['reference_type'] ?? '').toString();
-              final String refName = (td['reference_name'] ?? '').toString();
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: BorderSide(
-                    color: isClosed
-                        ? Colors.grey.withValues(alpha: 0.2)
-                        : pColor.withValues(alpha: 0.35),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 10, 12, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Checkbox(
-                            value: isClosed,
-                            activeColor: Colors.green,
-                            onChanged: (_) => _toggleTodoStatus(td),
-                          ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(
-                                    rawDesc,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      decoration: isClosed
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                      color: isClosed ? Colors.grey : null,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    spacing: 6,
-                                    runSpacing: 4,
-                                    children: <Widget>[
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: pColor.withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          priority,
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                            color: pColor,
-                                          ),
-                                        ),
-                                      ),
-                                      if (dueDate.isNotEmpty)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: colors
-                                                .surfaceContainerHighest
-                                                .withValues(alpha: 0.6),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            'Due: $dueDate',
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                            ),
-                                          ),
-                                        ),
-                                      if (refType.isNotEmpty &&
-                                          refName.isNotEmpty)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.indigo.withValues(
-                                              alpha: 0.1,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '$refType: $refName',
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.indigo,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 14),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: <Widget>[
-                          TextButton.icon(
-                            style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            icon: const Icon(
-                              Icons.history_edu_rounded,
-                              size: 16,
-                            ),
-                            label: const Text(
-                              'Log Activity',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                            onPressed: () => _showLogActivitySheet(
-                              referenceDocType: 'ToDo',
-                              referenceName: name,
-                              taskTitle: rawDesc,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          FilledButton.tonalIcon(
-                            style: FilledButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            icon: Icon(
-                              isClosed
-                                  ? Icons.replay_rounded
-                                  : Icons.check_rounded,
-                              size: 16,
-                            ),
-                            label: Text(
-                              isClosed ? 'Reopen' : 'Done',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            onPressed: () => _toggleTodoStatus(td),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-
-          if (_crmTasks.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 16),
-            const Text(
-              'Synced Frappe CRM Tasks',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            ..._crmTasks.map((Map<String, dynamic> t) {
-              final String status = (t['status'] ?? 'Todo').toString();
-              final bool done = status == 'Done' || status == 'Completed';
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Icon(
-                    done
-                        ? Icons.check_circle_rounded
-                        : Icons.radio_button_unchecked_rounded,
-                    color: done ? Colors.green : Colors.orange,
-                  ),
-                  title: Text(
-                    (t['title'] ?? t['name'] ?? '').toString(),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    'Priority: ${t['priority'] ?? 'Medium'} • Due: ${t['due_date'] ?? 'N/A'}',
-                  ),
-                  trailing: TextButton(
-                    onPressed: () async {
-                      final String nextStatus = done ? 'Todo' : 'Done';
-                      try {
-                        await ErpApiClient.instance.updateDoc(
-                          'CRM Task',
-                          (t['name'] ?? '').toString(),
-                          <String, dynamic>{'status': nextStatus},
-                        );
-                        await _loadTodosAndActivity();
-                      } catch (_) {}
-                    },
-                    child: Text(done ? 'Reopen' : 'Mark Done'),
-                  ),
-                ),
-              );
-            }),
-          ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1369,6 +1457,10 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
                   )
                 else
                   ...filteredNotes.map((Map<String, dynamic> n) {
+                    final String docName = (n['name'] ?? '').toString();
+                    final String noteDocType = n.containsKey('title')
+                        ? 'CRM Note'
+                        : 'Comment';
                     final String rawContent = (n['content'] ?? n['title'] ?? '')
                         .toString()
                         .replaceAll(RegExp(r'<[^>]*>'), '');
@@ -1380,6 +1472,14 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
                     return Card(
                       margin: const EdgeInsets.only(bottom: 10),
                       child: ListTile(
+                        onTap: docName.isEmpty
+                            ? null
+                            : () => ErpDocSheet.showViewAndEdit(
+                                context,
+                                doctype: noteDocType,
+                                docname: docName,
+                                onSaved: _loadTodosAndActivity,
+                              ),
                         leading: CircleAvatar(
                           backgroundColor: Colors.teal.withValues(alpha: 0.14),
                           child: const Icon(
@@ -1395,6 +1495,7 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
                           '$refDocType ${refName.isNotEmpty ? '• $refName' : ''}\nBy ${n['owner'] ?? 'User'} • ${n['creation'] ?? ''}',
                         ),
                         isThreeLine: true,
+                        trailing: const Icon(Icons.edit_note_rounded, size: 20),
                       ),
                     );
                   }),

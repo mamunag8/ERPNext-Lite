@@ -35,6 +35,7 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
   String _pinvQuery = '';
   String _pinvStatusFilter = 'All';
   String _supplierQuery = '';
+  String _supplierFilter = 'All';
   String _assetQuery = '';
   String _assetStatusFilter = 'All';
 
@@ -470,6 +471,14 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
     final List<Map<String, dynamic>> filteredSuppliers = _suppliers.where((
       Map<String, dynamic> row,
     ) {
+      if (_supplierFilter != 'All') {
+        final String grp = (row['supplier_group'] ?? '').toString();
+        final String country = (row['country'] ?? '').toString();
+        if (!grp.toLowerCase().contains(_supplierFilter.toLowerCase()) &&
+            !country.toLowerCase().contains(_supplierFilter.toLowerCase())) {
+          return false;
+        }
+      }
       return ErpSearchBar.matchesQuery(row, _supplierQuery);
     }).toList();
 
@@ -485,6 +494,15 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
             hintText: 'Search Suppliers (name, ID, group, country)...',
             query: _supplierQuery,
             onQueryChanged: (String v) => setState(() => _supplierQuery = v),
+            filters: const <String>[
+              'All',
+              'All Supplier Groups',
+              'Raw Material',
+              'Services',
+              'Bangladesh',
+            ],
+            selectedFilter: _supplierFilter,
+            onFilterChanged: (String f) => setState(() => _supplierFilter = f),
             resultCount: filteredSuppliers.length,
             totalCount: _suppliers.length,
           ),
@@ -697,12 +715,35 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Text(
-                      'New $doctype',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            'New $doctype',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: doctype,
+                              initialValues: <String, dynamic>{
+                                if (session != null) 'company': session.company,
+                                'supplier': supplierCtrl.text.trim(),
+                              },
+                              onCreated: _loadData,
+                            );
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     if (_suppliers.isNotEmpty)
@@ -880,9 +921,34 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              const Text(
-                'New Supplier',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  const Expanded(
+                    child: Text(
+                      'New Supplier',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.tune_rounded, size: 16),
+                    label: const Text('All ERP Fields'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      ErpDocSheet.showCreate(
+                        context,
+                        doctype: 'Supplier',
+                        initialValues: <String, dynamic>{
+                          'supplier_group': groupCtrl.text.trim(),
+                        },
+                        onCreated: _loadData,
+                      );
+                    },
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               TextField(
@@ -962,9 +1028,35 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  const Text(
-                    'New Asset Movement',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      const Expanded(
+                        child: Text(
+                          'New Asset Movement',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.tune_rounded, size: 16),
+                        label: const Text('All ERP Fields'),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          ErpDocSheet.showCreate(
+                            this.context,
+                            doctype: 'Asset Movement',
+                            initialValues: <String, dynamic>{
+                              if (session != null) 'company': session.company,
+                              'purpose': purpose,
+                            },
+                            onCreated: _loadData,
+                          );
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(

@@ -1397,6 +1397,8 @@ class ErpApiClient extends ChangeNotifier {
       <String, List<Map<String, dynamic>>>{};
   final Map<String, List<Map<String, dynamic>>> _doctypeFieldsCache =
       <String, List<Map<String, dynamic>>>{};
+  final Map<String, Map<String, int>> _doctypePermissionsCache =
+      <String, Map<String, int>>{};
 
   List<Map<String, dynamic>> _getMutableDemoList(String doctype) {
     return _demoStore.putIfAbsent(
@@ -1639,13 +1641,13 @@ class ErpApiClient extends ChangeNotifier {
     return Map<String, dynamic>.from(data);
   }
 
-  /// Fetches a document along with the current user's ERPNext permissions
-  /// (`read`, `write`, `create`, `submit`, `cancel`, `delete`, `amend`).
-  Future<Map<String, dynamic>> getDocWithPermissions(
-    String doctype,
-    String name,
-  ) async {
-    Map<String, dynamic> defaultPerms = <String, dynamic>{
+  /// Resolves the logged-in user's DocType-level permissions (`read`, `write`,
+  /// `create`, `submit`, `cancel`, `delete`) from ERPNext's DocPerm rules.
+  Future<Map<String, int>> getDocTypePermissions(String doctype) async {
+    if (_doctypePermissionsCache.containsKey(doctype)) {
+      return _doctypePermissionsCache[doctype]!;
+    }
+    final Map<String, int> resolved = <String, int>{
       'read': 1,
       'write': 1,
       'create': 1,
@@ -1653,6 +1655,102 @@ class ErpApiClient extends ChangeNotifier {
       'cancel': 1,
       'delete': 1,
     };
+    if (_isDemoSession) {
+      _doctypePermissionsCache[doctype] = resolved;
+      return resolved;
+    }
+
+    try {
+      await getDocTypeFields(doctype);
+      if (_doctypePermissionsCache.containsKey(doctype)) {
+        return _doctypePermissionsCache[doctype]!;
+      }
+    } catch (_) {}
+
+    _doctypePermissionsCache[doctype] = resolved;
+    return resolved;
+  }
+
+  void _extractAndCacheDocTypePermissions(
+    String doctype,
+    Map<String, dynamic> dtDoc,
+  ) {
+    final List<dynamic> rawPerms =
+        (dtDoc['permissions'] as List<dynamic>?) ?? <dynamic>[];
+    if (rawPerms.isEmpty) {
+      return;
+    }
+    final List<String> userRoles = _session?.roles ?? const <String>[];
+    final bool isAdminOrSysMgr =
+        _session?.username.toLowerCase() == 'administrator' ||
+        userRoles.contains('System Manager') ||
+        userRoles.contains('Administrator');
+
+    if (isAdminOrSysMgr) {
+      final int isSubmittable = (dtDoc['is_submittable'] as num?)?.toInt() ?? 0;
+      _doctypePermissionsCache[doctype] = <String, int>{
+        'read': 1,
+        'write': 1,
+        'create': 1,
+        'submit': isSubmittable,
+        'cancel': isSubmittable,
+        'delete': 1,
+      };
+      return;
+    }
+
+    int canRead = 0;
+    int canWrite = 0;
+    int canCreate = 0;
+    int canSubmit = 0;
+    int canCancel = 0;
+    int canDelete = 0;
+    bool matchedAnyRole = false;
+
+    for (final dynamic raw in rawPerms) {
+      if (raw is! Map) {
+        continue;
+      }
+      final Map<String, dynamic> p = Map<String, dynamic>.from(raw);
+      final int permLevel = (p['permlevel'] as num?)?.toInt() ?? 0;
+      if (permLevel != 0) {
+        continue;
+      }
+      final String role = (p['role'] ?? '').toString();
+      if (userRoles.isEmpty ||
+          userRoles.contains(role) ||
+          role == 'All' ||
+          role == 'Employee') {
+        matchedAnyRole = true;
+        if (((p['read'] as num?)?.toInt() ?? 0) == 1) canRead = 1;
+        if (((p['write'] as num?)?.toInt() ?? 0) == 1) canWrite = 1;
+        if (((p['create'] as num?)?.toInt() ?? 0) == 1) canCreate = 1;
+        if (((p['submit'] as num?)?.toInt() ?? 0) == 1) canSubmit = 1;
+        if (((p['cancel'] as num?)?.toInt() ?? 0) == 1) canCancel = 1;
+        if (((p['delete'] as num?)?.toInt() ?? 0) == 1) canDelete = 1;
+      }
+    }
+
+    if (matchedAnyRole) {
+      _doctypePermissionsCache[doctype] = <String, int>{
+        'read': canRead,
+        'write': canWrite,
+        'create': canCreate,
+        'submit': canSubmit,
+        'cancel': canCancel,
+        'delete': canDelete,
+      };
+    }
+  }
+
+  /// Fetches a document along with the current user's ERPNext permissions
+  /// (`read`, `write`, `create`, `submit`, `cancel`, `delete`, `amend`).
+  Future<Map<String, dynamic>> getDocWithPermissions(
+    String doctype,
+    String name,
+  ) async {
+    final Map<String, int> dtPerms = await getDocTypePermissions(doctype);
+    Map<String, dynamic> defaultPerms = Map<String, dynamic>.from(dtPerms);
     if (_isDemoSession) {
       final Map<String, dynamic> doc = await getDoc(doctype, name);
       return <String, dynamic>{'doc': doc, 'permissions': defaultPerms};
@@ -1670,9 +1768,12 @@ class ErpApiClient extends ChangeNotifier {
       final Map<String, dynamic> docinfo =
           (body['docinfo'] as Map<String, dynamic>?) ?? <String, dynamic>{};
       if (docinfo['permissions'] is Map) {
-        defaultPerms = Map<String, dynamic>.from(
-          docinfo['permissions'] as Map<dynamic, dynamic>,
-        );
+        defaultPerms = <String, dynamic>{
+          ...defaultPerms,
+          ...Map<String, dynamic>.from(
+            docinfo['permissions'] as Map<dynamic, dynamic>,
+          ),
+        };
       }
       if (docs.isNotEmpty && docs.first is Map) {
         return <String, dynamic>{
@@ -1706,6 +1807,7 @@ class ErpApiClient extends ChangeNotifier {
           final Map<String, dynamic> dtDoc = Map<String, dynamic>.from(
             docs.first as Map<dynamic, dynamic>,
           );
+          _extractAndCacheDocTypePermissions(doctype, dtDoc);
           final List<dynamic> rawFields =
               (dtDoc['fields'] as List<dynamic>?) ?? <dynamic>[];
           final List<Map<String, dynamic>> parsed = rawFields
@@ -1736,6 +1838,53 @@ class ErpApiClient extends ChangeNotifier {
     );
     _doctypeFieldsCache[doctype] = fallback;
     return fallback;
+  }
+
+  /// Searches records on the ERPNext server for [doctype] matching [query].
+  Future<List<Map<String, dynamic>>> searchDocTypeRecords(
+    String doctype,
+    String query, {
+    List<String> fields = const <String>[
+      'name',
+      'modified',
+      'owner',
+      'docstatus',
+    ],
+  }) async {
+    final String q = query.trim();
+    if (q.isEmpty) {
+      return getList(doctype, fields: fields, limitPageLength: 80);
+    }
+    try {
+      final List<Map<String, dynamic>> byLike = await getList(
+        doctype,
+        fields: fields,
+        listFilters: <List<dynamic>>[
+          <dynamic>['name', 'like', '%$q%'],
+        ],
+        limitPageLength: 50,
+      );
+      if (byLike.isNotEmpty) {
+        return byLike;
+      }
+    } catch (_) {}
+
+    try {
+      final List<String> linkNames = await searchLinkOptions(doctype, query: q);
+      if (linkNames.isNotEmpty) {
+        return linkNames
+            .map(
+              (String name) => <String, dynamic>{
+                'name': name,
+                'modified': 'Matched via Server Search',
+                'owner': '',
+                'docstatus': 0,
+              },
+            )
+            .toList();
+      }
+    } catch (_) {}
+    return <Map<String, dynamic>>[];
   }
 
   List<Map<String, dynamic>> _getFallbackDocTypeFields(String doctype) {
@@ -1919,6 +2068,1176 @@ class ErpApiClient extends ChangeNotifier {
             'fieldname': 'description',
             'label': 'Task Details / Description',
             'fieldtype': 'Text Editor',
+          },
+        ];
+      case 'Timesheet':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'company',
+            'label': 'Company',
+            'fieldtype': 'Link',
+            'options': 'Company',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'start_date',
+            'label': 'Start Date',
+            'fieldtype': 'Date',
+          },
+          <String, dynamic>{
+            'fieldname': 'time_logs',
+            'label': 'Time Sheets',
+            'fieldtype': 'Table',
+            'options': 'Timesheet Detail',
+            'reqd': 1,
+          },
+        ];
+      case 'Sales Invoice':
+      case 'Sales Order':
+      case 'Delivery Note':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'customer',
+            'label': 'Customer',
+            'fieldtype': 'Link',
+            'options': 'Customer',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': doctype == 'Sales Order'
+                ? 'transaction_date'
+                : 'posting_date',
+            'label': 'Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          if (doctype == 'Sales Order')
+            <String, dynamic>{
+              'fieldname': 'delivery_date',
+              'label': 'Delivery Date',
+              'fieldtype': 'Date',
+              'reqd': 1,
+            },
+          <String, dynamic>{
+            'fieldname': 'project',
+            'label': 'Project',
+            'fieldtype': 'Link',
+            'options': 'Project',
+          },
+          <String, dynamic>{
+            'fieldname': 'cost_center',
+            'label': 'Cost Center',
+            'fieldtype': 'Link',
+            'options': 'Cost Center',
+          },
+          <String, dynamic>{
+            'fieldname': 'department',
+            'label': 'Department',
+            'fieldtype': 'Link',
+            'options': 'Department',
+          },
+          <String, dynamic>{
+            'fieldname': 'set_warehouse',
+            'label': 'Source Warehouse',
+            'fieldtype': 'Link',
+            'options': 'Warehouse',
+          },
+          <String, dynamic>{
+            'fieldname': 'items',
+            'label': 'Items',
+            'fieldtype': 'Table',
+            'options': '$doctype Item',
+            'reqd': 1,
+          },
+        ];
+      case 'Quotation':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'quotation_to',
+            'label': 'Quotation To',
+            'fieldtype': 'Select',
+            'options': 'Customer\nLead',
+            'default': 'Customer',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'party_name',
+            'label': 'Customer / Lead',
+            'fieldtype': 'Link',
+            'options': 'Customer',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'transaction_date',
+            'label': 'Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'items',
+            'label': 'Items',
+            'fieldtype': 'Table',
+            'options': 'Quotation Item',
+            'reqd': 1,
+          },
+        ];
+      case 'Purchase Order':
+      case 'Purchase Receipt':
+      case 'Purchase Invoice':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'supplier',
+            'label': 'Supplier',
+            'fieldtype': 'Link',
+            'options': 'Supplier',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': doctype == 'Purchase Order'
+                ? 'transaction_date'
+                : 'posting_date',
+            'label': 'Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'project',
+            'label': 'Project',
+            'fieldtype': 'Link',
+            'options': 'Project',
+          },
+          <String, dynamic>{
+            'fieldname': 'cost_center',
+            'label': 'Cost Center',
+            'fieldtype': 'Link',
+            'options': 'Cost Center',
+          },
+          <String, dynamic>{
+            'fieldname': 'set_warehouse',
+            'label': 'Target Warehouse',
+            'fieldtype': 'Link',
+            'options': 'Warehouse',
+          },
+          <String, dynamic>{
+            'fieldname': 'items',
+            'label': 'Items',
+            'fieldtype': 'Table',
+            'options': '$doctype Item',
+            'reqd': 1,
+          },
+        ];
+      case 'Material Request':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'material_request_type',
+            'label': 'Purpose',
+            'fieldtype': 'Select',
+            'options':
+                'Purchase\nMaterial Transfer\nMaterial Issue\nManufacture',
+            'default': 'Material Transfer',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'transaction_date',
+            'label': 'Transaction Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'schedule_date',
+            'label': 'Required By Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'set_warehouse',
+            'label': 'Target Warehouse',
+            'fieldtype': 'Link',
+            'options': 'Warehouse',
+          },
+          <String, dynamic>{
+            'fieldname': 'items',
+            'label': 'Items',
+            'fieldtype': 'Table',
+            'options': 'Material Request Item',
+            'reqd': 1,
+          },
+        ];
+      case 'Stock Entry':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'stock_entry_type',
+            'label': 'Stock Entry Type',
+            'fieldtype': 'Select',
+            'options': 'Material Issue\nMaterial Receipt\nMaterial Transfer',
+            'default': 'Material Transfer',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'posting_date',
+            'label': 'Posting Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'from_warehouse',
+            'label': 'Default Source Warehouse',
+            'fieldtype': 'Link',
+            'options': 'Warehouse',
+          },
+          <String, dynamic>{
+            'fieldname': 'to_warehouse',
+            'label': 'Default Target Warehouse',
+            'fieldtype': 'Link',
+            'options': 'Warehouse',
+          },
+          <String, dynamic>{
+            'fieldname': 'project',
+            'label': 'Project',
+            'fieldtype': 'Link',
+            'options': 'Project',
+          },
+          <String, dynamic>{
+            'fieldname': 'items',
+            'label': 'Items',
+            'fieldtype': 'Table',
+            'options': 'Stock Entry Detail',
+            'reqd': 1,
+          },
+        ];
+      case 'Payment Entry':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'payment_type',
+            'label': 'Payment Type',
+            'fieldtype': 'Select',
+            'options': 'Receive\nPay\nInternal Transfer',
+            'default': 'Receive',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'party_type',
+            'label': 'Party Type',
+            'fieldtype': 'Select',
+            'options': 'Customer\nSupplier\nEmployee',
+            'default': 'Customer',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'party',
+            'label': 'Party',
+            'fieldtype': 'Link',
+            'options': 'Customer',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'posting_date',
+            'label': 'Posting Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'mode_of_payment',
+            'label': 'Mode of Payment',
+            'fieldtype': 'Select',
+            'options': 'Cash\nBank Draft\nWire Transfer\nCheque',
+            'default': 'Cash',
+          },
+          <String, dynamic>{
+            'fieldname': 'paid_amount',
+            'label': 'Paid Amount',
+            'fieldtype': 'Currency',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'received_amount',
+            'label': 'Received Amount',
+            'fieldtype': 'Currency',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'remarks',
+            'label': 'Remarks',
+            'fieldtype': 'Small Text',
+          },
+        ];
+      case 'Journal Entry':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'voucher_type',
+            'label': 'Entry Type',
+            'fieldtype': 'Select',
+            'options': 'Journal Entry\nBank Entry\nCash Entry\nContra Entry',
+            'default': 'Journal Entry',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'posting_date',
+            'label': 'Posting Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'user_remark',
+            'label': 'User Remark',
+            'fieldtype': 'Small Text',
+          },
+          <String, dynamic>{
+            'fieldname': 'accounts',
+            'label': 'Accounting Entries',
+            'fieldtype': 'Table',
+            'options': 'Journal Entry Account',
+            'reqd': 1,
+          },
+        ];
+      case 'Customer':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'customer_name',
+            'label': 'Customer Name',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'customer_type',
+            'label': 'Customer Type',
+            'fieldtype': 'Select',
+            'options': 'Company\nIndividual',
+            'default': 'Company',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'customer_group',
+            'label': 'Customer Group',
+            'fieldtype': 'Link',
+            'options': 'Customer Group',
+          },
+          <String, dynamic>{
+            'fieldname': 'territory',
+            'label': 'Territory',
+            'fieldtype': 'Link',
+            'options': 'Territory',
+          },
+          <String, dynamic>{
+            'fieldname': 'mobile_no',
+            'label': 'Mobile No',
+            'fieldtype': 'Data',
+          },
+        ];
+      case 'Supplier':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'supplier_name',
+            'label': 'Supplier Name',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'supplier_group',
+            'label': 'Supplier Group',
+            'fieldtype': 'Link',
+            'options': 'Supplier Group',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'supplier_type',
+            'label': 'Supplier Type',
+            'fieldtype': 'Select',
+            'options': 'Company\nIndividual',
+            'default': 'Company',
+          },
+          <String, dynamic>{
+            'fieldname': 'country',
+            'label': 'Country',
+            'fieldtype': 'Data',
+            'default': 'Bangladesh',
+          },
+        ];
+      case 'Item':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'item_code',
+            'label': 'Item Code',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'item_name',
+            'label': 'Item Name',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'item_group',
+            'label': 'Item Group',
+            'fieldtype': 'Link',
+            'options': 'Item Group',
+            'reqd': 1,
+            'default': 'Products',
+          },
+          <String, dynamic>{
+            'fieldname': 'stock_uom',
+            'label': 'Default Unit of Measure',
+            'fieldtype': 'Link',
+            'options': 'UOM',
+            'reqd': 1,
+            'default': 'Nos',
+          },
+          <String, dynamic>{
+            'fieldname': 'standard_rate',
+            'label': 'Standard Selling Rate',
+            'fieldtype': 'Currency',
+          },
+          <String, dynamic>{
+            'fieldname': 'is_stock_item',
+            'label': 'Maintain Stock',
+            'fieldtype': 'Check',
+            'default': 1,
+          },
+        ];
+      case 'Item Price':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'item_code',
+            'label': 'Item Code',
+            'fieldtype': 'Link',
+            'options': 'Item',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'price_list',
+            'label': 'Price List',
+            'fieldtype': 'Link',
+            'options': 'Price List',
+            'reqd': 1,
+            'default': 'Standard Selling',
+          },
+          <String, dynamic>{
+            'fieldname': 'price_list_rate',
+            'label': 'Rate',
+            'fieldtype': 'Currency',
+            'reqd': 1,
+          },
+        ];
+      case 'Asset':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'asset_name',
+            'label': 'Asset Name',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'item_code',
+            'label': 'Item Code',
+            'fieldtype': 'Link',
+            'options': 'Item',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'location',
+            'label': 'Location',
+            'fieldtype': 'Link',
+            'options': 'Location',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'gross_purchase_amount',
+            'label': 'Gross Purchase Amount',
+            'fieldtype': 'Currency',
+            'reqd': 1,
+          },
+        ];
+      case 'Asset Movement':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'purpose',
+            'label': 'Purpose',
+            'fieldtype': 'Select',
+            'options': 'Issue\nReceipt\nTransfer',
+            'default': 'Issue',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'transaction_date',
+            'label': 'Transaction Date',
+            'fieldtype': 'Datetime',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'assets',
+            'label': 'Assets',
+            'fieldtype': 'Table',
+            'options': 'Asset Movement Item',
+            'reqd': 1,
+          },
+        ];
+      case 'Employee':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'first_name',
+            'label': 'First Name',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'employee_name',
+            'label': 'Full Name',
+            'fieldtype': 'Data',
+          },
+          <String, dynamic>{
+            'fieldname': 'gender',
+            'label': 'Gender',
+            'fieldtype': 'Select',
+            'options': 'Male\nFemale\nOther',
+            'default': 'Male',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'date_of_birth',
+            'label': 'Date of Birth',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'date_of_joining',
+            'label': 'Date of Joining',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'department',
+            'label': 'Department',
+            'fieldtype': 'Link',
+            'options': 'Department',
+          },
+          <String, dynamic>{
+            'fieldname': 'designation',
+            'label': 'Designation',
+            'fieldtype': 'Link',
+            'options': 'Designation',
+          },
+          <String, dynamic>{
+            'fieldname': 'status',
+            'label': 'Status',
+            'fieldtype': 'Select',
+            'options': 'Active\nInactive\nSuspended\nLeft',
+            'default': 'Active',
+          },
+        ];
+      case 'Attendance':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'attendance_date',
+            'label': 'Attendance Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'status',
+            'label': 'Status',
+            'fieldtype': 'Select',
+            'options': 'Present\nAbsent\nOn Leave\nHalf Day\nWork From Home',
+            'default': 'Present',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'shift',
+            'label': 'Shift',
+            'fieldtype': 'Link',
+            'options': 'Shift Type',
+          },
+          <String, dynamic>{
+            'fieldname': 'late_entry',
+            'label': 'Late Entry',
+            'fieldtype': 'Check',
+          },
+          <String, dynamic>{
+            'fieldname': 'early_exit',
+            'label': 'Early Exit',
+            'fieldtype': 'Check',
+          },
+        ];
+      case 'Employee Checkin':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'log_type',
+            'label': 'Log Type',
+            'fieldtype': 'Select',
+            'options': 'IN\nOUT',
+            'default': 'IN',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'time',
+            'label': 'Time',
+            'fieldtype': 'Datetime',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'device_id',
+            'label': 'Location / Device ID',
+            'fieldtype': 'Data',
+          },
+        ];
+      case 'Shift Request':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'shift_type',
+            'label': 'Shift Type',
+            'fieldtype': 'Link',
+            'options': 'Shift Type',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'from_date',
+            'label': 'From Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'to_date',
+            'label': 'To Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'status',
+            'label': 'Status',
+            'fieldtype': 'Select',
+            'options': 'Draft\nApproved\nRejected',
+            'default': 'Draft',
+          },
+        ];
+      case 'Leave Application':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'leave_type',
+            'label': 'Leave Type',
+            'fieldtype': 'Link',
+            'options': 'Leave Type',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'from_date',
+            'label': 'From Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'to_date',
+            'label': 'To Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'status',
+            'label': 'Status',
+            'fieldtype': 'Select',
+            'options': 'Open\nApproved\nRejected\nCancelled',
+            'default': 'Open',
+          },
+          <String, dynamic>{
+            'fieldname': 'description',
+            'label': 'Reason',
+            'fieldtype': 'Small Text',
+          },
+        ];
+      case 'Leave Allocation':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'leave_type',
+            'label': 'Leave Type',
+            'fieldtype': 'Link',
+            'options': 'Leave Type',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'from_date',
+            'label': 'From Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'to_date',
+            'label': 'To Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'new_leaves_allocated',
+            'label': 'New Leaves Allocated',
+            'fieldtype': 'Float',
+            'reqd': 1,
+          },
+        ];
+      case 'Expense Claim':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'posting_date',
+            'label': 'Posting Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'approval_status',
+            'label': 'Approval Status',
+            'fieldtype': 'Select',
+            'options': 'Draft\nApproved\nRejected',
+            'default': 'Draft',
+          },
+          <String, dynamic>{
+            'fieldname': 'project',
+            'label': 'Project',
+            'fieldtype': 'Link',
+            'options': 'Project',
+          },
+          <String, dynamic>{
+            'fieldname': 'cost_center',
+            'label': 'Cost Center',
+            'fieldtype': 'Link',
+            'options': 'Cost Center',
+          },
+          <String, dynamic>{
+            'fieldname': 'expenses',
+            'label': 'Expenses',
+            'fieldtype': 'Table',
+            'options': 'Expense Claim Detail',
+            'reqd': 1,
+          },
+        ];
+      case 'Employee Advance':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'posting_date',
+            'label': 'Posting Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'advance_amount',
+            'label': 'Advance Amount',
+            'fieldtype': 'Currency',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'purpose',
+            'label': 'Purpose',
+            'fieldtype': 'Small Text',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'project',
+            'label': 'Project',
+            'fieldtype': 'Link',
+            'options': 'Project',
+          },
+        ];
+      case 'Salary Slip':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'posting_date',
+            'label': 'Posting Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'start_date',
+            'label': 'Start Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'end_date',
+            'label': 'End Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'salary_structure',
+            'label': 'Salary Structure',
+            'fieldtype': 'Link',
+            'options': 'Salary Structure',
+          },
+          <String, dynamic>{
+            'fieldname': 'earnings',
+            'label': 'Earnings',
+            'fieldtype': 'Table',
+            'options': 'Salary Detail',
+          },
+          <String, dynamic>{
+            'fieldname': 'deductions',
+            'label': 'Deductions',
+            'fieldtype': 'Table',
+            'options': 'Salary Detail',
+          },
+        ];
+      case 'Payroll Entry':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'posting_date',
+            'label': 'Posting Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'payroll_frequency',
+            'label': 'Payroll Frequency',
+            'fieldtype': 'Select',
+            'options': 'Monthly\nFortnightly\nBimonthly\nWeekly\nDaily',
+            'default': 'Monthly',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'start_date',
+            'label': 'Start Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'end_date',
+            'label': 'End Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'department',
+            'label': 'Department',
+            'fieldtype': 'Link',
+            'options': 'Department',
+          },
+        ];
+      case 'Salary Structure':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'name',
+            'label': 'Structure Name',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'company',
+            'label': 'Company',
+            'fieldtype': 'Link',
+            'options': 'Company',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'is_active',
+            'label': 'Is Active',
+            'fieldtype': 'Select',
+            'options': 'Yes\nNo',
+            'default': 'Yes',
+          },
+          <String, dynamic>{
+            'fieldname': 'payroll_frequency',
+            'label': 'Payroll Frequency',
+            'fieldtype': 'Select',
+            'options': 'Monthly\nFortnightly\nBimonthly\nWeekly\nDaily',
+            'default': 'Monthly',
+          },
+        ];
+      case 'Salary Structure Assignment':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'salary_structure',
+            'label': 'Salary Structure',
+            'fieldtype': 'Link',
+            'options': 'Salary Structure',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'from_date',
+            'label': 'From Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'base',
+            'label': 'Base Salary',
+            'fieldtype': 'Currency',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'variable',
+            'label': 'Variable Pay',
+            'fieldtype': 'Currency',
+          },
+        ];
+      case 'Additional Salary':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'employee',
+            'label': 'Employee',
+            'fieldtype': 'Link',
+            'options': 'Employee',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'salary_component',
+            'label': 'Salary Component',
+            'fieldtype': 'Link',
+            'options': 'Salary Component',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'payroll_date',
+            'label': 'Payroll Date',
+            'fieldtype': 'Date',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'amount',
+            'label': 'Amount',
+            'fieldtype': 'Currency',
+            'reqd': 1,
+          },
+        ];
+      case 'CRM Lead':
+      case 'Lead':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'first_name',
+            'label': 'First Name',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'last_name',
+            'label': 'Last Name',
+            'fieldtype': 'Data',
+          },
+          <String, dynamic>{
+            'fieldname': doctype == 'CRM Lead'
+                ? 'organization'
+                : 'company_name',
+            'label': 'Organization / Company',
+            'fieldtype': 'Data',
+          },
+          <String, dynamic>{
+            'fieldname': 'mobile_no',
+            'label': 'Mobile No',
+            'fieldtype': 'Data',
+          },
+          <String, dynamic>{
+            'fieldname': 'email',
+            'label': 'Email',
+            'fieldtype': 'Data',
+          },
+          <String, dynamic>{
+            'fieldname': 'status',
+            'label': 'Status',
+            'fieldtype': 'Select',
+            'options': 'New\nContacted\nNurture\nQualified\nConverted\nJunk',
+            'default': 'New',
+          },
+        ];
+      case 'CRM Deal':
+      case 'Opportunity':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': doctype == 'CRM Deal' ? 'organization' : 'party_name',
+            'label': 'Organization / Party',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'status',
+            'label': 'Pipeline Stage',
+            'fieldtype': 'Select',
+            'options': 'Qualification\nDemo/Making\nProposal/Quotation\nNegotiation\nReady to Close\nWon\nLost',
+            'default': 'Qualification',
+          },
+          <String, dynamic>{
+            'fieldname': doctype == 'CRM Deal'
+                ? 'deal_value'
+                : 'opportunity_amount',
+            'label': 'Deal Value',
+            'fieldtype': 'Currency',
+          },
+          <String, dynamic>{
+            'fieldname': 'expected_closure_date',
+            'label': 'Expected Closure Date',
+            'fieldtype': 'Date',
+          },
+        ];
+      case 'CRM Task':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'title',
+            'label': 'Task Title',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'status',
+            'label': 'Status',
+            'fieldtype': 'Select',
+            'options': 'Todo\nIn Progress\nDone\nCancelled',
+            'default': 'Todo',
+          },
+          <String, dynamic>{
+            'fieldname': 'priority',
+            'label': 'Priority',
+            'fieldtype': 'Select',
+            'options': 'Low\nMedium\nHigh',
+            'default': 'Medium',
+          },
+          <String, dynamic>{
+            'fieldname': 'due_date',
+            'label': 'Due Date',
+            'fieldtype': 'Date',
+          },
+          <String, dynamic>{
+            'fieldname': 'assigned_to',
+            'label': 'Assigned To',
+            'fieldtype': 'Link',
+            'options': 'User',
+          },
+          <String, dynamic>{
+            'fieldname': 'description',
+            'label': 'Description',
+            'fieldtype': 'Small Text',
+          },
+        ];
+      case 'ToDo':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'description',
+            'label': 'Description / Task',
+            'fieldtype': 'Small Text',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'status',
+            'label': 'Status',
+            'fieldtype': 'Select',
+            'options': 'Open\nClosed\nCancelled',
+            'default': 'Open',
+          },
+          <String, dynamic>{
+            'fieldname': 'priority',
+            'label': 'Priority',
+            'fieldtype': 'Select',
+            'options': 'Low\nMedium\nHigh',
+            'default': 'Medium',
+          },
+          <String, dynamic>{
+            'fieldname': 'date',
+            'label': 'Due Date',
+            'fieldtype': 'Date',
+          },
+          <String, dynamic>{
+            'fieldname': 'allocated_to',
+            'label': 'Allocated To',
+            'fieldtype': 'Link',
+            'options': 'User',
+          },
+          <String, dynamic>{
+            'fieldname': 'reference_type',
+            'label': 'Reference DocType',
+            'fieldtype': 'Data',
+          },
+          <String, dynamic>{
+            'fieldname': 'reference_name',
+            'label': 'Reference Name',
+            'fieldtype': 'Data',
+          },
+        ];
+      case 'FCRM Note':
+      case 'CRM Note':
+      case 'Note':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'title',
+            'label': 'Title',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'content',
+            'label': 'Content',
+            'fieldtype': 'Text Editor',
+          },
+          <String, dynamic>{
+            'fieldname': 'reference_doctype',
+            'label': 'Reference DocType',
+            'fieldtype': 'Data',
+          },
+          <String, dynamic>{
+            'fieldname': 'reference_docname',
+            'label': 'Reference Name',
+            'fieldtype': 'Data',
           },
         ];
       default:

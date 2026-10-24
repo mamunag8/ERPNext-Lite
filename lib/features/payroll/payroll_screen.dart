@@ -372,12 +372,29 @@ class _PayrollScreenState extends State<PayrollScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'Generate Salary Slip',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Text(
+                          'Generate Salary Slip',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Salary Slip',
+                              onCreated: _loadAllPayrollData,
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                        ),
+                      ],
                     ),
                     const Text(
                       'Automatically pulls Salary Structure Assignment & Additional Salaries for the selected period.',
@@ -653,12 +670,31 @@ class _PayrollScreenState extends State<PayrollScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'New Payroll Entry (Bulk Payroll Run)',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Expanded(
+                          child: Text(
+                            'New Payroll Entry (Bulk Payroll Run)',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Payroll Entry',
+                              onCreated: _loadAllPayrollData,
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     Row(
@@ -995,12 +1031,29 @@ class _PayrollScreenState extends State<PayrollScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'Assign Salary Structure',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Text(
+                          'Assign Salary Structure',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Salary Structure Assignment',
+                              onCreated: _loadAllPayrollData,
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
@@ -1243,12 +1296,31 @@ class _PayrollScreenState extends State<PayrollScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'New Additional Salary / Bonus / Overtime',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Expanded(
+                          child: Text(
+                            'New Additional Salary / Bonus / Overtime',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Additional Salary',
+                              onCreated: _loadAllPayrollData,
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                        ),
+                      ],
                     ),
                     const Text(
                       'Creates an Additional Salary entry and optionally generates the updated Salary Slip immediately.',
@@ -1928,14 +2000,28 @@ class _PayrollScreenState extends State<PayrollScreen>
                                     children: <Widget>[
                                       TextButton.icon(
                                         onPressed: () =>
+                                            ErpDocSheet.showViewAndEdit(
+                                              context,
+                                              doctype: 'Salary Slip',
+                                              docname: name,
+                                              onSaved: _loadAllPayrollData,
+                                            ),
+                                        icon: const Icon(
+                                          Icons.edit_note_rounded,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Edit'),
+                                      ),
+                                      TextButton.icon(
+                                        onPressed: () =>
                                             _showSlipDetailSheet(s, sym),
                                         icon: const Icon(
                                           Icons.visibility_outlined,
                                           size: 18,
                                         ),
-                                        label: const Text('View Breakdown'),
+                                        label: const Text('Breakdown'),
                                       ),
-                                      const SizedBox(width: 8),
+                                      const SizedBox(width: 4),
                                       FilledButton.tonalIcon(
                                         onPressed: isDownloading
                                             ? null
@@ -2209,14 +2295,28 @@ class _PayrollScreenState extends State<PayrollScreen>
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
                 children: <Widget>[
-                  if (filteredStructures.isNotEmpty) ...<Widget>[
-                    Text(
-                      'Active Salary Structures (${filteredStructures.length})',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      Text(
+                        'Active Salary Structures (${filteredStructures.length})',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
+                      TextButton.icon(
+                        onPressed: () => ErpDocSheet.showCreate(
+                          context,
+                          doctype: 'Salary Structure',
+                          onCreated: _loadAllPayrollData,
+                        ),
+                        icon: const Icon(Icons.add_circle_outline, size: 16),
+                        label: const Text('+ New Structure'),
+                      ),
+                    ],
+                  ),
+                  if (filteredStructures.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 8),
                     SizedBox(
                       height: 76,

@@ -40,6 +40,91 @@ class ErpDocSheet {
         .join(' ');
   }
 
+  static String? _childRowKeyLinkDocType(String key) {
+    switch (key) {
+      case 'item_code':
+        return 'Item';
+      case 'warehouse':
+      case 's_warehouse':
+      case 't_warehouse':
+        return 'Warehouse';
+      case 'cost_center':
+        return 'Cost Center';
+      case 'account':
+        return 'Account';
+      case 'expense_type':
+        return 'Expense Claim Type';
+      case 'activity_type':
+        return 'Activity Type';
+      case 'project':
+        return 'Project';
+      case 'task':
+        return 'Task';
+      case 'asset':
+        return 'Asset';
+      case 'to_employee':
+      case 'from_employee':
+        return 'Employee';
+      case 'salary_component':
+        return 'Salary Component';
+      default:
+        return null;
+    }
+  }
+
+  static Map<String, dynamic> _defaultChildRowTemplate(String tableField) {
+    final UserSession? s = ErpApiClient.instance.session;
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final String defaultCc = (s != null && s.costCenter.isNotEmpty)
+        ? s.costCenter
+        : '101 - Head Office CC - DIBL';
+    switch (tableField) {
+      case 'items':
+        return <String, dynamic>{
+          'item_code': '',
+          'qty': 1,
+          'rate': 0.0,
+          'warehouse': '',
+          'cost_center': defaultCc,
+        };
+      case 'accounts':
+        return <String, dynamic>{
+          'account': '',
+          'debit_in_account_currency': 0.0,
+          'credit_in_account_currency': 0.0,
+          'cost_center': defaultCc,
+        };
+      case 'expenses':
+        return <String, dynamic>{
+          'expense_date': today,
+          'expense_type': '',
+          'description': '',
+          'amount': 0.0,
+          'sanctioned_amount': 0.0,
+        };
+      case 'time_logs':
+        return <String, dynamic>{
+          'activity_type': 'Execution',
+          'hours': 1.0,
+          'project': '',
+          'task': '',
+          'description': '',
+        };
+      case 'assets':
+        return <String, dynamic>{
+          'asset': '',
+          'source_location': '',
+          'target_location': '',
+          'to_employee': '',
+        };
+      case 'earnings':
+      case 'deductions':
+        return <String, dynamic>{'salary_component': '', 'amount': 0.0};
+      default:
+        return <String, dynamic>{'description': '', 'qty': 1, 'amount': 0.0};
+    }
+  }
+
   /// Opens a full interactive ERPNext Document Viewer & Editor bottom sheet
   /// respecting the user's real ERPNext access (`write`, `submit`, `cancel`, `delete`).
   static Future<bool> showViewAndEdit(
@@ -138,8 +223,21 @@ class ErpDocSheet {
     );
 
     List<Map<String, dynamic>> metaFields = <Map<String, dynamic>>[];
+    Map<String, dynamic> permissions = <String, dynamic>{
+      'read': 1,
+      'write': 1,
+      'create': 1,
+      'submit': 0,
+      'cancel': 0,
+      'delete': 0,
+    };
     try {
-      metaFields = await ErpApiClient.instance.getDocTypeFields(doctype);
+      final List<dynamic> res = await Future.wait<dynamic>(<Future<dynamic>>[
+        ErpApiClient.instance.getDocTypeFields(doctype),
+        ErpApiClient.instance.getDocTypePermissions(doctype),
+      ]);
+      metaFields = res[0] as List<Map<String, dynamic>>;
+      permissions = res[1] as Map<String, dynamic>;
     } catch (_) {}
 
     if (!context.mounted) {
@@ -156,6 +254,7 @@ class ErpDocSheet {
         return _ErpDocCreateModal(
           doctype: doctype,
           metaFields: metaFields,
+          permissions: permissions,
           initialValues: initialValues ?? <String, dynamic>{},
           onCreated: (Map<String, dynamic> doc) {
             createdDoc = doc;
@@ -355,6 +454,11 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
     final int delPerm = (widget.permissions['delete'] as num?)?.toInt() ?? 0;
     final int docstatus = (_doc['docstatus'] as num?)?.toInt() ?? 0;
     return delPerm == 1 && docstatus == 0;
+  }
+
+  bool get _canCreate {
+    final int createPerm = (widget.permissions['create'] as num?)?.toInt() ?? 1;
+    return createPerm == 1;
   }
 
   @override
@@ -866,6 +970,41 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                     fontSize: 13,
                   ),
                 ),
+                if (isEditable)
+                  TextButton.icon(
+                    onPressed: () {
+                      final Map<String, dynamic> template =
+                          rows.isNotEmpty && rows.first is Map
+                          ? <String, dynamic>{
+                              for (final MapEntry<dynamic, dynamic> e
+                                  in (rows.first as Map<dynamic, dynamic>)
+                                      .entries)
+                                if (!ErpDocSheet._systemReadOnlyKeys.contains(
+                                      e.key.toString(),
+                                    ) &&
+                                    e.key.toString() != 'parent' &&
+                                    e.key.toString() != 'parentfield' &&
+                                    e.key.toString() != 'parenttype')
+                                  e.key.toString(): e.value is num ? 0 : '',
+                            }
+                          : ErpDocSheet._defaultChildRowTemplate(fieldname);
+                      _editChildRowDialog(
+                        fieldname,
+                        rows.length,
+                        template,
+                        rows,
+                        isNewRow: true,
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.add_circle_outline_rounded,
+                      size: 16,
+                    ),
+                    label: const Text(
+                      '+ Add Row',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 6),
@@ -881,7 +1020,9 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                           r['expense_type'] ??
                           r['salary_component'] ??
                           r['activity_type'] ??
+                          r['asset'] ??
                           r['user'] ??
+                          r['description'] ??
                           r['name'] ??
                           'Row ${idx + 1}')
                       .toString();
@@ -890,9 +1031,15 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                 if (r['rate'] != null) 'Rate: ${r['rate']}',
                 if (r['amount'] != null) 'Amt: ${r['amount']}',
                 if (r['hours'] != null) 'Hrs: ${r['hours']}',
-                if (r['debit'] != null && (r['debit'] as num) > 0)
+                if (r['debit_in_account_currency'] != null &&
+                    (r['debit_in_account_currency'] as num? ?? 0) > 0)
+                  'Dr: ${r['debit_in_account_currency']}',
+                if (r['credit_in_account_currency'] != null &&
+                    (r['credit_in_account_currency'] as num? ?? 0) > 0)
+                  'Cr: ${r['credit_in_account_currency']}',
+                if (r['debit'] != null && (r['debit'] as num? ?? 0) > 0)
                   'Dr: ${r['debit']}',
-                if (r['credit'] != null && (r['credit'] as num) > 0)
+                if (r['credit'] != null && (r['credit'] as num? ?? 0) > 0)
                   'Cr: ${r['credit']}',
               ].join(' • ');
 
@@ -911,10 +1058,42 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                       ? Text(secondary, style: const TextStyle(fontSize: 11))
                       : null,
                   trailing: isEditable
-                      ? IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          onPressed: () =>
-                              _editChildRowDialog(fieldname, idx, r, rows),
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            IconButton(
+                              tooltip: 'Edit Row',
+                              icon: const Icon(Icons.edit_outlined, size: 18),
+                              onPressed: () =>
+                                  _editChildRowDialog(fieldname, idx, r, rows),
+                            ),
+                            IconButton(
+                              tooltip: 'Delete Row',
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                size: 18,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: () {
+                                final List<Map<String, dynamic>> updatedTable =
+                                    rows
+                                        .map(
+                                          (dynamic e) =>
+                                              Map<String, dynamic>.from(
+                                                e as Map<dynamic, dynamic>,
+                                              ),
+                                        )
+                                        .toList();
+                                if (idx >= 0 && idx < updatedTable.length) {
+                                  updatedTable.removeAt(idx);
+                                  setState(() {
+                                    _doc[fieldname] = updatedTable;
+                                    _changedValues[fieldname] = updatedTable;
+                                  });
+                                }
+                              },
+                            ),
+                          ],
                         )
                       : null,
                 ),
@@ -930,8 +1109,9 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
     String tableField,
     int rowIndex,
     Map<String, dynamic> rowData,
-    List<dynamic> allRows,
-  ) async {
+    List<dynamic> allRows, {
+    bool isNewRow = false,
+  }) async {
     final List<String> editableRowKeys = rowData.keys
         .where(
           (String k) =>
@@ -953,21 +1133,45 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
     final bool? updated = await showDialog<bool>(
       context: context,
       builder: (BuildContext dCtx) => AlertDialog(
-        title: Text('Edit Row #${rowIndex + 1}'),
+        title: Text(
+          isNewRow ? 'Add Row (#${rowIndex + 1})' : 'Edit Row #${rowIndex + 1}',
+        ),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: editableRowKeys.map((String k) {
+                final String? linkDt = ErpDocSheet._childRowKeyLinkDocType(k);
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: TextField(
                     controller: rowCtrls[k],
                     decoration: InputDecoration(
-                      labelText: ErpDocSheet._humanizeFieldName(k),
+                      labelText: linkDt != null
+                          ? '${ErpDocSheet._humanizeFieldName(k)} ($linkDt)'
+                          : ErpDocSheet._humanizeFieldName(k),
                       border: const OutlineInputBorder(),
                       isDense: true,
+                      suffixIcon: linkDt != null
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.manage_search_rounded,
+                                size: 18,
+                              ),
+                              onPressed: () async {
+                                final String? picked =
+                                    await ErpDocSheet.pickLinkValue(
+                                      context,
+                                      linkDocType: linkDt,
+                                      currentValue: rowCtrls[k]!.text.trim(),
+                                    );
+                                if (picked != null) {
+                                  rowCtrls[k]!.text = picked;
+                                }
+                              },
+                            )
+                          : null,
                     ),
                   ),
                 );
@@ -982,7 +1186,7 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dCtx, true),
-            child: const Text('Apply'),
+            child: Text(isNewRow ? 'Add Row' : 'Apply'),
           ),
         ],
       ),
@@ -1006,7 +1210,11 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                 Map<String, dynamic>.from(e as Map<dynamic, dynamic>),
           )
           .toList();
-      updatedTable[rowIndex] = newRow;
+      if (isNewRow || rowIndex >= updatedTable.length) {
+        updatedTable.add(newRow);
+      } else {
+        updatedTable[rowIndex] = newRow;
+      }
       setState(() {
         _doc[tableField] = updatedTable;
         _changedValues[tableField] = updatedTable;
@@ -1098,7 +1306,7 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
-                                _canWrite ? 'Editable' : 'Read Only',
+                                _canWrite ? 'Write Access' : 'Read Only',
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
@@ -1108,11 +1316,65 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                                 ),
                               ),
                             ),
+                            if (_canCreate)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  'Create',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green.shade700,
+                                  ),
+                                ),
+                              ),
+                            if (_canSubmit)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.purple.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  'Submit',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.purple.shade700,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ],
                     ),
                   ),
+                  if (_canCreate)
+                    IconButton(
+                      tooltip: 'New ${widget.doctype}',
+                      icon: const Icon(
+                        Icons.add_circle_outline_rounded,
+                        color: Colors.teal,
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        ErpDocSheet.showCreate(
+                          context,
+                          doctype: widget.doctype,
+                          onCreated: widget.onSaved,
+                        );
+                      },
+                    ),
                   IconButton(
                     tooltip: 'Download Official PDF',
                     icon: const Icon(
@@ -1211,12 +1473,14 @@ class _ErpDocCreateModal extends StatefulWidget {
   const _ErpDocCreateModal({
     required this.doctype,
     required this.metaFields,
+    required this.permissions,
     required this.initialValues,
     required this.onCreated,
   });
 
   final String doctype;
   final List<Map<String, dynamic>> metaFields;
+  final Map<String, dynamic> permissions;
   final Map<String, dynamic> initialValues;
   final ValueChanged<Map<String, dynamic>> onCreated;
 
@@ -1231,6 +1495,9 @@ class _ErpDocCreateModalState extends State<_ErpDocCreateModal> {
   bool _saving = false;
   bool _showOptional = false;
 
+  bool get _canCreate =>
+      ((widget.permissions['create'] as num?)?.toInt() ?? 1) == 1;
+
   @override
   void initState() {
     super.initState();
@@ -1240,7 +1507,14 @@ class _ErpDocCreateModalState extends State<_ErpDocCreateModal> {
 
     for (final Map<String, dynamic> f in widget.metaFields) {
       final String fn = (f['fieldname'] ?? '').toString();
+      final String ft = (f['fieldtype'] ?? '').toString();
       if (fn.isEmpty) {
+        continue;
+      }
+      if (ft == 'Table') {
+        if (_values[fn] is! List) {
+          _values[fn] = <Map<String, dynamic>>[];
+        }
         continue;
       }
       dynamic def = _values[fn] ?? f['default'];
@@ -1289,13 +1563,11 @@ class _ErpDocCreateModalState extends State<_ErpDocCreateModal> {
       Map<String, dynamic> f,
     ) {
       final String fn = (f['fieldname'] ?? '').toString();
-      final String ft = (f['fieldtype'] ?? '').toString();
       final int ro = (f['read_only'] as num?)?.toInt() ?? 0;
       return fn.isNotEmpty &&
           fn != 'naming_series' &&
           fn != 'amended_from' &&
-          ro == 0 &&
-          ft != 'Table';
+          ro == 0;
     }).toList();
 
     if (editable.isEmpty) {
@@ -1326,14 +1598,268 @@ class _ErpDocCreateModalState extends State<_ErpDocCreateModal> {
     final List<Map<String, dynamic>> primary = editable.where((
       Map<String, dynamic> f,
     ) {
+      final String ft = (f['fieldtype'] ?? '').toString();
       final int reqd = (f['reqd'] as num?)?.toInt() ?? 0;
       final int inStandardFilter =
           (f['in_standard_filter'] as num?)?.toInt() ?? 0;
       final int inListView = (f['in_list_view'] as num?)?.toInt() ?? 0;
-      return reqd == 1 || inStandardFilter == 1 || inListView == 1;
+      return reqd == 1 ||
+          inStandardFilter == 1 ||
+          inListView == 1 ||
+          ft == 'Table';
     }).toList();
 
-    return primary.isNotEmpty ? primary : editable.take(10).toList();
+    return primary.isNotEmpty ? primary : editable.take(12).toList();
+  }
+
+  Future<void> _editCreateChildRowDialog(
+    String tableField,
+    int rowIndex,
+    Map<String, dynamic> rowData,
+    List<dynamic> allRows, {
+    bool isNewRow = false,
+  }) async {
+    final List<String> editableRowKeys = rowData.keys
+        .where(
+          (String k) =>
+              !ErpDocSheet._systemReadOnlyKeys.contains(k) &&
+              k != 'parent' &&
+              k != 'parentfield' &&
+              k != 'parenttype' &&
+              rowData[k] is! Map &&
+              rowData[k] is! List,
+        )
+        .toList();
+
+    final Map<String, TextEditingController> rowCtrls =
+        <String, TextEditingController>{
+          for (final String k in editableRowKeys)
+            k: TextEditingController(text: (rowData[k] ?? '').toString()),
+        };
+
+    final bool? updated = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dCtx) => AlertDialog(
+        title: Text(
+          isNewRow ? 'Add Row (#${rowIndex + 1})' : 'Edit Row #${rowIndex + 1}',
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: editableRowKeys.map((String k) {
+                final String? linkDt = ErpDocSheet._childRowKeyLinkDocType(k);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: TextField(
+                    controller: rowCtrls[k],
+                    decoration: InputDecoration(
+                      labelText: linkDt != null
+                          ? '${ErpDocSheet._humanizeFieldName(k)} ($linkDt)'
+                          : ErpDocSheet._humanizeFieldName(k),
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                      suffixIcon: linkDt != null
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.manage_search_rounded,
+                                size: 18,
+                              ),
+                              onPressed: () async {
+                                final String? picked =
+                                    await ErpDocSheet.pickLinkValue(
+                                      context,
+                                      linkDocType: linkDt,
+                                      currentValue: rowCtrls[k]!.text.trim(),
+                                    );
+                                if (picked != null) {
+                                  rowCtrls[k]!.text = picked;
+                                }
+                              },
+                            )
+                          : null,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: Text(isNewRow ? 'Add Row' : 'Apply'),
+          ),
+        ],
+      ),
+    );
+
+    if (updated == true) {
+      final Map<String, dynamic> newRow = Map<String, dynamic>.from(rowData);
+      for (final String k in editableRowKeys) {
+        final String txt = rowCtrls[k]!.text.trim();
+        if (rowData[k] is int) {
+          newRow[k] = int.tryParse(txt) ?? rowData[k];
+        } else if (rowData[k] is num) {
+          newRow[k] = double.tryParse(txt) ?? rowData[k];
+        } else {
+          newRow[k] = txt;
+        }
+      }
+      final List<Map<String, dynamic>> updatedTable = allRows
+          .map(
+            (dynamic e) =>
+                Map<String, dynamic>.from(e as Map<dynamic, dynamic>),
+          )
+          .toList();
+      if (isNewRow || rowIndex >= updatedTable.length) {
+        updatedTable.add(newRow);
+      } else {
+        updatedTable[rowIndex] = newRow;
+      }
+      setState(() {
+        _values[tableField] = updatedTable;
+      });
+    }
+  }
+
+  Widget _buildCreateChildTableWidget(String fieldname, String label) {
+    final List<dynamic> rows =
+        (_values[fieldname] as List<dynamic>?) ?? <dynamic>[];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest
+              .withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                Text(
+                  '$label (${rows.length})',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    final Map<String, dynamic> template =
+                        ErpDocSheet._defaultChildRowTemplate(fieldname);
+                    _editCreateChildRowDialog(
+                      fieldname,
+                      rows.length,
+                      template,
+                      rows,
+                      isNewRow: true,
+                    );
+                  },
+                  icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
+                  label: const Text(
+                    '+ Add Row',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            if (rows.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  'No rows added yet. Tap "+ Add Row" to add items.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ),
+            ...rows.asMap().entries.map((MapEntry<int, dynamic> entry) {
+              final int idx = entry.key;
+              final Map<String, dynamic> r = Map<String, dynamic>.from(
+                entry.value as Map<dynamic, dynamic>,
+              );
+              final String primary =
+                  (r['item_name'] ??
+                          r['item_code'] ??
+                          r['account'] ??
+                          r['expense_type'] ??
+                          r['salary_component'] ??
+                          r['activity_type'] ??
+                          r['asset'] ??
+                          r['description'] ??
+                          'Row ${idx + 1}')
+                      .toString();
+              final String secondary = <String>[
+                if (r['qty'] != null) 'Qty: ${r['qty']}',
+                if (r['rate'] != null) 'Rate: ${r['rate']}',
+                if (r['amount'] != null) 'Amt: ${r['amount']}',
+                if (r['hours'] != null) 'Hrs: ${r['hours']}',
+              ].join(' • ');
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                child: ListTile(
+                  dense: true,
+                  title: Text(
+                    primary.isEmpty ? 'Row ${idx + 1}' : primary,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                  subtitle: secondary.isNotEmpty
+                      ? Text(secondary, style: const TextStyle(fontSize: 11))
+                      : null,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        onPressed: () =>
+                            _editCreateChildRowDialog(fieldname, idx, r, rows),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: Colors.redAccent,
+                        ),
+                        onPressed: () {
+                          final List<Map<String, dynamic>> updated = rows
+                              .map(
+                                (dynamic e) => Map<String, dynamic>.from(
+                                  e as Map<dynamic, dynamic>,
+                                ),
+                              )
+                              .toList();
+                          if (idx >= 0 && idx < updated.length) {
+                            updated.removeAt(idx);
+                            setState(() {
+                              _values[fieldname] = updated;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _submitCreate() async {
@@ -1348,7 +1874,12 @@ class _ErpDocCreateModalState extends State<_ErpDocCreateModal> {
         }
       }
       for (final MapEntry<String, dynamic> e in _values.entries) {
-        if (e.value != null && e.value.toString().trim().isNotEmpty) {
+        if (e.value is List) {
+          final List<dynamic> listVal = e.value as List<dynamic>;
+          if (listVal.isNotEmpty) {
+            payload[e.key] = listVal;
+          }
+        } else if (e.value != null && e.value.toString().trim().isNotEmpty) {
           payload.putIfAbsent(e.key, () => e.value);
         }
       }
@@ -1405,11 +1936,48 @@ class _ErpDocCreateModalState extends State<_ErpDocCreateModal> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
-                  Text(
-                    'New ${widget.doctype}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'New ${widget.doctype}',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Wrap(
+                          spacing: 6,
+                          children: <Widget>[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _canCreate
+                                    ? Colors.green.withValues(alpha: 0.14)
+                                    : Colors.orange.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                _canCreate
+                                    ? 'ERP Create Access'
+                                    : 'Restricted Create Access',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: _canCreate
+                                      ? Colors.green.shade700
+                                      : Colors.orange.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                   TextButton.icon(
@@ -1443,6 +2011,29 @@ class _ErpDocCreateModalState extends State<_ErpDocCreateModal> {
                     final String ft = (f['fieldtype'] ?? 'Data').toString();
                     final int reqd = (f['reqd'] as num?)?.toInt() ?? 0;
                     final String labelWithReq = reqd == 1 ? '$label *' : label;
+
+                    if (ft == 'Table') {
+                      return _buildCreateChildTableWidget(fn, labelWithReq);
+                    }
+
+                    if (ft == 'Check') {
+                      final bool checked =
+                          _values[fn] == 1 ||
+                          _values[fn] == true ||
+                          _values[fn] == '1';
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          labelWithReq,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        value: checked,
+                        onChanged: (bool v) {
+                          setState(() => _values[fn] = v ? 1 : 0);
+                        },
+                      );
+                    }
+
                     final TextEditingController ctrl = _controllers.putIfAbsent(
                       fn,
                       () => TextEditingController(
@@ -1571,10 +2162,27 @@ class _ErpDocCreateModalState extends State<_ErpDocCreateModal> {
                       );
                     }
 
+                    final bool isNumeric =
+                        ft == 'Currency' ||
+                        ft == 'Float' ||
+                        ft == 'Int' ||
+                        ft == 'Percent';
+                    final bool isMultiline =
+                        ft == 'Text' ||
+                        ft == 'Small Text' ||
+                        ft == 'Text Editor' ||
+                        ft == 'Long Text';
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: TextField(
                         controller: ctrl,
+                        maxLines: isMultiline ? 3 : 1,
+                        keyboardType: isNumeric
+                            ? const TextInputType.numberWithOptions(
+                                decimal: true,
+                              )
+                            : TextInputType.text,
                         onChanged: (String v) => _values[fn] = v.trim(),
                         decoration: InputDecoration(
                           labelText: labelWithReq,
@@ -1589,7 +2197,7 @@ class _ErpDocCreateModalState extends State<_ErpDocCreateModal> {
               SafeArea(
                 top: false,
                 child: FilledButton.icon(
-                  onPressed: _saving ? null : _submitCreate,
+                  onPressed: (_saving || !_canCreate) ? null : _submitCreate,
                   icon: _saving
                       ? const SizedBox(
                           width: 18,
@@ -1600,7 +2208,11 @@ class _ErpDocCreateModalState extends State<_ErpDocCreateModal> {
                           ),
                         )
                       : const Icon(Icons.add_circle_outline_rounded),
-                  label: Text('Create ${widget.doctype}'),
+                  label: Text(
+                    _canCreate
+                        ? 'Create ${widget.doctype}'
+                        : 'No Create Permission for ${widget.doctype}',
+                  ),
                 ),
               ),
             ],

@@ -66,6 +66,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   String _checkinQuery = '';
   String _checkinTypeFilter = 'All';
   String _toolEmployeeQuery = '';
+  String _toolEmployeeFilter = 'All';
   String _shiftQuery = '';
   String _shiftStatusFilter = 'All';
 
@@ -604,9 +605,29 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  const Text(
-                    'New Shift Request',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      const Text(
+                        'New Shift Request',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          ErpDocSheet.showCreate(
+                            this.context,
+                            doctype: 'Shift Request',
+                            onCreated: _loadAttendanceAndShifts,
+                          );
+                        },
+                        icon: const Icon(Icons.tune_rounded, size: 16),
+                        label: const Text('All ERP Fields'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
@@ -1104,12 +1125,26 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   ),
                 ),
                 const SizedBox(height: 18),
-                Text(
-                  'Recent Check-In / Out Logs (${filteredCheckins.length})',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    Text(
+                      'Recent Check-In / Out Logs (${filteredCheckins.length})',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => ErpDocSheet.showCreate(
+                        context,
+                        doctype: 'Employee Checkin',
+                        onCreated: _loadAttendanceAndShifts,
+                      ),
+                      icon: const Icon(Icons.add_circle_outline, size: 16),
+                      label: const Text('+ Manual Log'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 if (filteredCheckins.isEmpty)
@@ -1238,6 +1273,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               'Search Employees in Attendance Tool (name, ID, department)...',
           query: _toolEmployeeQuery,
           onQueryChanged: (String v) => setState(() => _toolEmployeeQuery = v),
+          filters: const <String>['All', 'Unmarked', 'Marked'],
+          selectedFilter: _toolEmployeeFilter,
+          onFilterChanged: (String f) =>
+              setState(() => _toolEmployeeFilter = f),
           resultCount: deptEmployees.length,
           totalCount: allEmps.length,
         ),
@@ -1247,6 +1286,34 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: <Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    OutlinedButton.icon(
+                      icon: const Icon(
+                        Icons.person_add_alt_1_rounded,
+                        size: 16,
+                      ),
+                      label: const Text('+ New Employee'),
+                      onPressed: () => ErpDocSheet.showCreate(
+                        context,
+                        doctype: 'Employee',
+                        onCreated: _loadAttendanceAndShifts,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.tonalIcon(
+                      icon: const Icon(Icons.add_task_rounded, size: 16),
+                      label: const Text('+ New Attendance'),
+                      onPressed: () => ErpDocSheet.showCreate(
+                        context,
+                        doctype: 'Attendance',
+                        onCreated: _loadAttendanceAndShifts,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 // Attendance Tool Control Header Card
                 Card(
                   shape: RoundedRectangleBorder(
@@ -1547,6 +1614,19 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                               subtitle: Text(
                                 '$empId • ${emp['department'] ?? 'No Dept'}',
                                 style: const TextStyle(fontSize: 12),
+                              ),
+                              secondary: IconButton(
+                                tooltip: 'View / Edit Employee Profile',
+                                icon: const Icon(
+                                  Icons.edit_note_rounded,
+                                  size: 20,
+                                ),
+                                onPressed: () => ErpDocSheet.showViewAndEdit(
+                                  context,
+                                  doctype: 'Employee',
+                                  docname: empId,
+                                  onSaved: _loadAttendanceAndShifts,
+                                ),
                               ),
                             ),
                             Padding(
@@ -2012,11 +2092,19 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: <Widget>[
                               Expanded(
-                                child: Text(
-                                  '$empName ($empId)',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
+                                child: InkWell(
+                                  onTap: () => ErpDocSheet.showViewAndEdit(
+                                    context,
+                                    doctype: 'Employee',
+                                    docname: empId,
+                                    onSaved: _loadAttendanceAndShifts,
+                                  ),
+                                  child: Text(
+                                    '$empName ($empId)',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                 ),
                               ),
