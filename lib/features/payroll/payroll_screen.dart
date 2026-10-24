@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/erp_doc_sheet.dart';
 
 class PayrollScreen extends StatefulWidget {
   const PayrollScreen({super.key, this.initialTab = 0});
@@ -1670,6 +1671,20 @@ class _PayrollScreenState extends State<PayrollScreen>
                   ),
                   const SizedBox(height: 10),
                 ],
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    ErpDocSheet.showViewAndEdit(
+                      this.context,
+                      doctype: 'Salary Slip',
+                      docname: name,
+                      onSaved: _loadAllPayrollData,
+                    );
+                  },
+                  icon: const Icon(Icons.edit_note_rounded),
+                  label: const Text('View / Edit All ERP Fields'),
+                ),
+                const SizedBox(height: 10),
                 FilledButton.icon(
                   onPressed: () {
                     Navigator.pop(ctx);
@@ -1950,96 +1965,120 @@ class _PayrollScreenState extends State<PayrollScreen>
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: <Widget>[
-                              Expanded(
-                                child: Text(
-                                  '$name (${pe['payroll_frequency'] ?? 'Monthly'})',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => ErpDocSheet.showViewAndEdit(
+                        context,
+                        doctype: 'Payroll Entry',
+                        docname: name,
+                        onSaved: _loadAllPayrollData,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Expanded(
+                                  child: Text(
+                                    '$name (${pe['payroll_frequency'] ?? 'Monthly'})',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              Chip(
-                                label: Text(
-                                  status,
-                                  style: const TextStyle(fontSize: 11),
+                                Chip(
+                                  label: Text(
+                                    status,
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  visualDensity: VisualDensity.compact,
                                 ),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Period: ${pe['start_date'] ?? ''} → ${pe['end_date'] ?? ''}',
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                          Text(
-                            'Department: ${pe['department'] ?? 'All Departments'} • Posting: ${pe['posting_date'] ?? ''}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
+                              ],
                             ),
-                          ),
-                          const Divider(),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            alignment: WrapAlignment.end,
-                            children: <Widget>[
-                              FilledButton.tonalIcon(
-                                icon: const Icon(
-                                  Icons.playlist_add_check_rounded,
-                                  size: 18,
+                            const SizedBox(height: 4),
+                            Text(
+                              'Period: ${pe['start_date'] ?? ''} → ${pe['end_date'] ?? ''}',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                            Text(
+                              'Department: ${pe['department'] ?? 'All Departments'} • Posting: ${pe['posting_date'] ?? ''}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const Divider(),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              alignment: WrapAlignment.end,
+                              children: <Widget>[
+                                OutlinedButton.icon(
+                                  icon: const Icon(
+                                    Icons.edit_note_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text('View / Edit'),
+                                  onPressed: () => ErpDocSheet.showViewAndEdit(
+                                    context,
+                                    doctype: 'Payroll Entry',
+                                    docname: name,
+                                    onSaved: _loadAllPayrollData,
+                                  ),
                                 ),
-                                label: const Text('Create Salary Slips'),
-                                onPressed: () async {
-                                  final int count =
-                                      await _createSlipsForPayrollPeriod(
-                                        payrollEntryName: name,
-                                        startDate: (pe['start_date'] ?? '')
-                                            .toString(),
-                                        endDate: (pe['end_date'] ?? '')
-                                            .toString(),
-                                        postingDate: (pe['posting_date'] ?? '')
-                                            .toString(),
-                                        department: (pe['department'] ?? '')
-                                            .toString(),
-                                      );
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(
-                                      this.context,
-                                    ).showSnackBar(
-                                      SnackBar(
-                                        backgroundColor: Colors.green.shade700,
-                                        content: Text(
-                                          'Generated $count Salary Slip(s) for $name!',
+                                FilledButton.tonalIcon(
+                                  icon: const Icon(
+                                    Icons.playlist_add_check_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Create Salary Slips'),
+                                  onPressed: () async {
+                                    final int count =
+                                        await _createSlipsForPayrollPeriod(
+                                          payrollEntryName: name,
+                                          startDate: (pe['start_date'] ?? '')
+                                              .toString(),
+                                          endDate: (pe['end_date'] ?? '')
+                                              .toString(),
+                                          postingDate:
+                                              (pe['posting_date'] ?? '')
+                                                  .toString(),
+                                          department: (pe['department'] ?? '')
+                                              .toString(),
+                                        );
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(
+                                        this.context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          backgroundColor:
+                                              Colors.green.shade700,
+                                          content: Text(
+                                            'Generated $count Salary Slip(s) for $name!',
+                                          ),
                                         ),
-                                      ),
-                                    );
-                                  }
-                                  await _loadAllPayrollData();
-                                },
-                              ),
-                              OutlinedButton.icon(
-                                icon: const Icon(
-                                  Icons.picture_as_pdf_rounded,
-                                  size: 16,
+                                      );
+                                    }
+                                    await _loadAllPayrollData();
+                                  },
                                 ),
-                                label: const Text('PDF'),
-                                onPressed: () =>
-                                    _downloadPdf('Payroll Entry', name),
-                              ),
-                            ],
-                          ),
-                        ],
+                                OutlinedButton.icon(
+                                  icon: const Icon(
+                                    Icons.picture_as_pdf_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text('PDF'),
+                                  onPressed: () =>
+                                      _downloadPdf('Payroll Entry', name),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -2076,33 +2115,45 @@ class _PayrollScreenState extends State<PayrollScreen>
                   separatorBuilder: (_, _) => const SizedBox(width: 10),
                   itemBuilder: (BuildContext context, int i) {
                     final Map<String, dynamic> st = _salaryStructures[i];
-                    return Container(
-                      width: 220,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer
-                            .withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          Text(
-                            '${st['name'] ?? ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                    final String stName = (st['name'] ?? '').toString();
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: stName.isEmpty
+                          ? null
+                          : () => ErpDocSheet.showViewAndEdit(
+                              context,
+                              doctype: 'Salary Structure',
+                              docname: stName,
+                              onSaved: _loadAllPayrollData,
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${st['payroll_frequency'] ?? 'Monthly'} • Active: ${st['is_active'] ?? 'Yes'}',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                        ],
+                      child: Container(
+                        width: 220,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer
+                              .withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Text(
+                              stName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${st['payroll_frequency'] ?? 'Monthly'} • Active: ${st['is_active'] ?? 'Yes'}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -2145,8 +2196,8 @@ class _PayrollScreenState extends State<PayrollScreen>
                       'Structure: ${a['salary_structure'] ?? ''}\nFrom: ${a['from_date'] ?? ''} ${varAmt > 0 ? '• Variable: $sym${NumberFormat('#,##0').format(varAmt)}' : ''}',
                     ),
                     isThreeLine: true,
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         Chip(
                           label: Text(
@@ -2155,10 +2206,23 @@ class _PayrollScreenState extends State<PayrollScreen>
                           ),
                           visualDensity: VisualDensity.compact,
                         ),
+                        IconButton(
+                          tooltip: 'Download PDF',
+                          icon: const Icon(
+                            Icons.picture_as_pdf_rounded,
+                            size: 18,
+                          ),
+                          onPressed: () =>
+                              _downloadPdf('Salary Structure Assignment', name),
+                        ),
                       ],
                     ),
-                    onTap: () =>
-                        _downloadPdf('Salary Structure Assignment', name),
+                    onTap: () => ErpDocSheet.showViewAndEdit(
+                      context,
+                      doctype: 'Salary Structure Assignment',
+                      docname: name,
+                      onSaved: _loadAllPayrollData,
+                    ),
                   ),
                 );
               }),
@@ -2207,75 +2271,98 @@ class _PayrollScreenState extends State<PayrollScreen>
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 10),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: <Widget>[
-                            Expanded(
-                              child: Text(
-                                '${ads['employee_name'] ?? empId} • $comp',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => ErpDocSheet.showViewAndEdit(
+                      context,
+                      doctype: 'Additional Salary',
+                      docname: name,
+                      onSaved: _loadAllPayrollData,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: <Widget>[
+                              Expanded(
+                                child: Text(
+                                  '${ads['employee_name'] ?? empId} • $comp',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Text(
-                              '${isEarning ? '+' : '-'}$sym${NumberFormat('#,##0').format(amt)}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                                color: isEarning ? Colors.green : Colors.red,
+                              Text(
+                                '${isEarning ? '+' : '-'}$sym${NumberFormat('#,##0').format(amt)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  color: isEarning ? Colors.green : Colors.red,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '$name • Payroll Date: $pDate • Type: $type',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
+                            ],
                           ),
-                        ),
-                        const Divider(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: <Widget>[
-                            OutlinedButton.icon(
-                              icon: const Icon(
-                                Icons.picture_as_pdf_rounded,
-                                size: 16,
-                              ),
-                              label: const Text('PDF'),
-                              onPressed: () =>
-                                  _downloadPdf('Additional Salary', name),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$name • Payroll Date: $pDate • Type: $type',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
                             ),
-                            const SizedBox(width: 8),
-                            FilledButton.tonalIcon(
-                              icon: const Icon(
-                                Icons.receipt_long_rounded,
-                                size: 16,
+                          ),
+                          const Divider(),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.end,
+                            children: <Widget>[
+                              OutlinedButton.icon(
+                                icon: const Icon(
+                                  Icons.edit_note_rounded,
+                                  size: 16,
+                                ),
+                                label: const Text('View / Edit'),
+                                onPressed: () => ErpDocSheet.showViewAndEdit(
+                                  context,
+                                  doctype: 'Additional Salary',
+                                  docname: name,
+                                  onSaved: _loadAllPayrollData,
+                                ),
                               ),
-                              label: const Text('Generate Salary Slip'),
-                              onPressed: () {
-                                DateTime? parsedDate;
-                                try {
-                                  parsedDate = DateTime.parse(pDate);
-                                } catch (_) {}
-                                _showGenerateSalarySlipSheet(
-                                  preselectedEmp: empId,
-                                  referenceDate: parsedDate,
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
+                              OutlinedButton.icon(
+                                icon: const Icon(
+                                  Icons.picture_as_pdf_rounded,
+                                  size: 16,
+                                ),
+                                label: const Text('PDF'),
+                                onPressed: () =>
+                                    _downloadPdf('Additional Salary', name),
+                              ),
+                              FilledButton.tonalIcon(
+                                icon: const Icon(
+                                  Icons.receipt_long_rounded,
+                                  size: 16,
+                                ),
+                                label: const Text('Generate Salary Slip'),
+                                onPressed: () {
+                                  DateTime? parsedDate;
+                                  try {
+                                    parsedDate = DateTime.parse(pDate);
+                                  } catch (_) {}
+                                  _showGenerateSalarySlipSheet(
+                                    preselectedEmp: empId,
+                                    referenceDate: parsedDate,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );

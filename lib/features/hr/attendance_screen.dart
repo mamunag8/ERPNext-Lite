@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/erp_doc_sheet.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key, this.initialTab = 0});
@@ -1069,11 +1070,20 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             )
           else
             ..._recentCheckins.map((Map<String, dynamic> c) {
+              final String docName = (c['name'] ?? '').toString();
               final String logType = (c['log_type'] ?? 'IN').toString();
               final bool isIn = logType == 'IN';
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
+                  onTap: docName.isEmpty
+                      ? null
+                      : () => ErpDocSheet.showViewAndEdit(
+                          context,
+                          doctype: 'Employee Checkin',
+                          docname: docName,
+                          onSaved: _loadAttendanceAndShifts,
+                        ),
                   leading: CircleAvatar(
                     backgroundColor: isIn
                         ? Colors.green.withValues(alpha: 0.15)
@@ -1089,6 +1099,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   ),
                   subtitle: Text('${c['time'] ?? ''}\n${c['device_id'] ?? ''}'),
                   isThreeLine: true,
+                  trailing: const Icon(Icons.edit_note_rounded, size: 20),
                 ),
               );
             }),
@@ -1527,11 +1538,20 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             ...markedEmployees.map((Map<String, dynamic> item) {
               final Map<String, dynamic> att =
                   item['att'] as Map<String, dynamic>;
+              final String attDocName = (att['name'] ?? '').toString();
               final String status = (att['status'] ?? 'Present').toString();
               final Color badgeColor = _statusColor(status);
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
+                  onTap: attDocName.isEmpty
+                      ? null
+                      : () => ErpDocSheet.showViewAndEdit(
+                          context,
+                          doctype: 'Attendance',
+                          docname: attDocName,
+                          onSaved: _loadAttendanceAndShifts,
+                        ),
                   leading: CircleAvatar(
                     backgroundColor: badgeColor.withValues(alpha: 0.15),
                     child: Text(
@@ -1932,11 +1952,20 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             )
           else
             ...monthRecords.map((Map<String, dynamic> row) {
+              final String docName = (row['name'] ?? '').toString();
               final String status = (row['status'] ?? 'Present').toString();
               final Color badgeColor = _statusColor(status);
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
+                  onTap: docName.isEmpty
+                      ? null
+                      : () => ErpDocSheet.showViewAndEdit(
+                          context,
+                          doctype: 'Attendance',
+                          docname: docName,
+                          onSaved: _loadAttendanceAndShifts,
+                        ),
                   leading: CircleAvatar(
                     backgroundColor: badgeColor.withValues(alpha: 0.15),
                     child: Icon(
@@ -1949,7 +1978,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
-                    'Doc: ${row['name']} ${row['shift'] != null ? '• Shift: ${row['shift']}' : ''}',
+                    'Doc: $docName ${row['shift'] != null ? '• Shift: ${row['shift']}' : ''}',
                   ),
                   trailing: Chip(
                     label: Text(
@@ -2026,9 +2055,18 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 itemCount: _shiftRequests.length,
                 itemBuilder: (BuildContext context, int idx) {
                   final Map<String, dynamic> s = _shiftRequests[idx];
+                  final String docName = (s['name'] ?? '').toString();
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
                     child: ListTile(
+                      onTap: docName.isEmpty
+                          ? null
+                          : () => ErpDocSheet.showViewAndEdit(
+                              context,
+                              doctype: 'Shift Request',
+                              docname: docName,
+                              onSaved: _loadAttendanceAndShifts,
+                            ),
                       leading: const Icon(Icons.schedule_send_rounded),
                       title: Text(
                         '${s['shift_type'] ?? 'Shift'} (${s['status'] ?? 'Draft'})',
@@ -2037,6 +2075,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       subtitle: Text(
                         '${s['from_date'] ?? ''} → ${s['to_date'] ?? ''} • ${s['employee_name'] ?? ''}',
                       ),
+                      trailing: const Icon(Icons.edit_note_rounded, size: 20),
                     ),
                   );
                 },

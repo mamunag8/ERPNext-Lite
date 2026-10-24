@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/erp_doc_sheet.dart';
 
 class BuyingAndAssetsScreen extends StatefulWidget {
   const BuyingAndAssetsScreen({super.key, this.initialTab = 0});
@@ -219,7 +220,7 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
           itemCount: _purchaseOrders.length,
           itemBuilder: (BuildContext context, int i) {
             final Map<String, dynamic> po = _purchaseOrders[i];
@@ -228,6 +229,12 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Purchase Order',
+                  docname: docName,
+                  onSaved: _loadData,
+                ),
                 title: Text(
                   '${po['supplier_name'] ?? po['supplier'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
@@ -264,7 +271,7 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
           itemCount: _purchaseReceipts.length,
           itemBuilder: (BuildContext context, int i) {
             final Map<String, dynamic> pr = _purchaseReceipts[i];
@@ -273,6 +280,12 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Purchase Receipt',
+                  docname: docName,
+                  onSaved: _loadData,
+                ),
                 title: Text(
                   '${pr['supplier_name'] ?? pr['supplier'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
@@ -309,7 +322,7 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
           itemCount: _purchaseInvoices.length,
           itemBuilder: (BuildContext context, int i) {
             final Map<String, dynamic> pinv = _purchaseInvoices[i];
@@ -320,6 +333,12 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Purchase Invoice',
+                  docname: docName,
+                  onSaved: _loadData,
+                ),
                 title: Text(
                   '${pinv['supplier_name'] ?? pinv['supplier'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
@@ -356,23 +375,31 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
           itemCount: _suppliers.length,
           itemBuilder: (BuildContext context, int i) {
             final Map<String, dynamic> s = _suppliers[i];
+            final String docName = (s['name'] ?? '').toString();
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Supplier',
+                  docname: docName,
+                  onSaved: _loadData,
+                ),
                 leading: const CircleAvatar(
                   child: Icon(Icons.storefront_rounded),
                 ),
                 title: Text(
-                  '${s['supplier_name'] ?? s['name']}',
+                  '${s['supplier_name'] ?? docName}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
                   'Group: ${s['supplier_group'] ?? 'All Supplier Groups'} • ${s['country'] ?? 'Bangladesh'}',
                 ),
+                trailing: const Icon(Icons.edit_outlined, size: 18),
               ),
             );
           },
@@ -391,30 +418,52 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
           children: <Widget>[
-            const Text(
-              'Company Assets Register',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                const Text(
+                  'Company Assets Register (Tap to Edit)',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: () => ErpDocSheet.showCreate(
+                    context,
+                    doctype: 'Asset',
+                    onCreated: _loadData,
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('+ New Asset'),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             ..._assets.map((Map<String, dynamic> a) {
+              final String assetName = (a['name'] ?? '').toString();
               final double val =
                   (a['gross_purchase_amount'] as num?)?.toDouble() ?? 0;
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
+                  onTap: () => ErpDocSheet.showViewAndEdit(
+                    context,
+                    doctype: 'Asset',
+                    docname: assetName,
+                    onSaved: _loadData,
+                  ),
                   leading: const CircleAvatar(
                     child: Icon(Icons.precision_manufacturing_rounded),
                   ),
                   title: Text(
-                    '${a['asset_name'] ?? a['name']} (${a['name']})',
+                    '${a['asset_name'] ?? assetName} ($assetName)',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
                     'Category: ${a['asset_category'] ?? 'General'} • Location: ${a['location'] ?? 'N/A'}\nValue: $sym${NumberFormat('#,##0').format(val)} • Status: ${a['status'] ?? ''}',
                   ),
                   isThreeLine: true,
+                  trailing: const Icon(Icons.edit_outlined, size: 18),
                 ),
               );
             }),
@@ -425,15 +474,23 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
             ),
             const SizedBox(height: 8),
             ..._assetMovements.map((Map<String, dynamic> m) {
+              final String moveName = (m['name'] ?? '').toString();
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
+                  onTap: () => ErpDocSheet.showViewAndEdit(
+                    context,
+                    doctype: 'Asset Movement',
+                    docname: moveName,
+                    onSaved: _loadData,
+                  ),
                   leading: const Icon(Icons.swap_horizontal_circle_outlined),
                   title: Text(
-                    '${m['name']} • ${m['purpose'] ?? 'Transfer'}',
+                    '$moveName • ${m['purpose'] ?? 'Transfer'}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text('Date: ${m['transaction_date'] ?? ''}'),
+                  trailing: const Icon(Icons.edit_outlined, size: 18),
                 ),
               );
             }),

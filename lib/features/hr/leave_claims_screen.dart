@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/erp_doc_sheet.dart';
 
 class LeaveAndClaimsScreen extends StatefulWidget {
   const LeaveAndClaimsScreen({super.key, this.initialTab = 0});
@@ -1471,6 +1472,19 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                     },
                   ),
                   OutlinedButton.icon(
+                    icon: const Icon(Icons.edit_note_rounded, size: 18),
+                    label: const Text('View / Edit All Fields'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      ErpDocSheet.showViewAndEdit(
+                        context,
+                        doctype: 'Employee Advance',
+                        docname: docName,
+                        onSaved: _loadAllData,
+                      );
+                    },
+                  ),
+                  OutlinedButton.icon(
                     icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
                     label: const Text('Download PDF'),
                     onPressed: () {
@@ -1566,42 +1580,56 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                   separatorBuilder: (_, _) => const SizedBox(width: 10),
                   itemBuilder: (BuildContext context, int i) {
                     final Map<String, dynamic> a = _leaveAllocations[i];
-                    return Container(
-                      width: 175,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondaryContainer
-                            .withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          Text(
-                            '${a['leave_type'] ?? ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                    final String allocName = (a['name'] ?? '').toString();
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: allocName.isEmpty
+                          ? null
+                          : () => ErpDocSheet.showViewAndEdit(
+                              context,
+                              doctype: 'Leave Allocation',
+                              docname: allocName,
+                              onSaved: _loadAllData,
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Allocated: ${a['total_leaves_allocated'] ?? 0} days',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          Text(
-                            '${a['employee_name'] ?? a['employee'] ?? ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey,
+                      child: Container(
+                        width: 175,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .secondaryContainer
+                              .withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            Text(
+                              '${a['leave_type'] ?? ''}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 4),
+                            Text(
+                              'Allocated: ${a['total_leaves_allocated'] ?? 0} days',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              '${a['employee_name'] ?? a['employee'] ?? ''}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -1620,77 +1648,100 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
               final bool isOpen = status == 'Open';
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: <Widget>[
-                          Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => ErpDocSheet.showViewAndEdit(
+                    context,
+                    doctype: 'Leave Application',
+                    docname: docName,
+                    onSaved: _loadAllData,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: <Widget>[
+                            Expanded(
+                              child: Text(
+                                '${l['employee_name'] ?? l['employee'] ?? ''} • ${l['leave_type'] ?? ''}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                            Chip(
+                              label: Text(
+                                status,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '${l['from_date']} → ${l['to_date']} (${l['total_leave_days'] ?? 1} days)',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        if (l['description'] != null &&
+                            l['description'].toString().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              '${l['employee_name'] ?? l['employee'] ?? ''} • ${l['leave_type'] ?? ''}',
+                              l['description'].toString(),
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
+                                fontSize: 12,
+                                color: Colors.grey,
                               ),
                             ),
                           ),
-                          Chip(
-                            label: Text(
-                              status,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '${l['from_date']} → ${l['to_date']} (${l['total_leave_days'] ?? 1} days)',
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                      if (l['description'] != null &&
-                          l['description'].toString().isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            l['description'].toString(),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                      if (isOpen && (session?.isApprover ?? true)) ...<Widget>[
                         const Divider(),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: <Widget>[
                             TextButton.icon(
-                              onPressed: () =>
-                                  _updateLeaveStatus(docName, 'Rejected'),
+                              onPressed: () => ErpDocSheet.showViewAndEdit(
+                                context,
+                                doctype: 'Leave Application',
+                                docname: docName,
+                                onSaved: _loadAllData,
+                              ),
                               icon: const Icon(
-                                Icons.close_rounded,
-                                color: Colors.red,
+                                Icons.edit_note_rounded,
                                 size: 18,
                               ),
-                              label: const Text(
-                                'Reject',
-                                style: TextStyle(color: Colors.red),
+                              label: const Text('View / Edit'),
+                            ),
+                            if (isOpen &&
+                                (session?.isApprover ?? true)) ...<Widget>[
+                              TextButton.icon(
+                                onPressed: () =>
+                                    _updateLeaveStatus(docName, 'Rejected'),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.red,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Reject',
+                                  style: TextStyle(color: Colors.red),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            FilledButton.tonalIcon(
-                              onPressed: () =>
-                                  _updateLeaveStatus(docName, 'Approved'),
-                              icon: const Icon(Icons.check_rounded, size: 18),
-                              label: const Text('Approve'),
-                            ),
+                              const SizedBox(width: 8),
+                              FilledButton.tonalIcon(
+                                onPressed: () =>
+                                    _updateLeaveStatus(docName, 'Approved'),
+                                icon: const Icon(Icons.check_rounded, size: 18),
+                                label: const Text('Approve'),
+                              ),
+                            ],
                           ],
                         ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
               );
@@ -1725,81 +1776,103 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
 
             return Card(
               margin: const EdgeInsets.only(bottom: 10),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            '${c['employee_name'] ?? c['employee'] ?? ''} ($docName)',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Expense Claim',
+                  docname: docName,
+                  onSaved: _loadAllData,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              '${c['employee_name'] ?? c['employee'] ?? ''} ($docName)',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
                             ),
                           ),
-                        ),
-                        Chip(
-                          label: Text(
-                            approval,
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Claimed: $sym${claimed.toStringAsFixed(2)} • Sanctioned: $sym${sanctioned.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                    Text(
-                      'Date: ${c['posting_date'] ?? ''} • Project: ${c['project'] ?? 'N/A'}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: <Widget>[
-                        IconButton(
-                          tooltip: 'Download Expense Claim PDF',
-                          icon: const Icon(
-                            Icons.picture_as_pdf_rounded,
-                            size: 18,
-                          ),
-                          onPressed: () {
-                            ErpApiClient.instance.downloadAndOpenPdf(
-                              doctype: 'Expense Claim',
-                              docname: docName,
-                            );
-                          },
-                        ),
-                        if (approval == 'Draft' &&
-                            (session?.isApprover ?? true)) ...<Widget>[
-                          TextButton(
-                            onPressed: () =>
-                                _updateExpenseApproval(docName, 'Rejected'),
-                            child: const Text(
-                              'Reject',
-                              style: TextStyle(color: Colors.red),
+                          Chip(
+                            label: Text(
+                              approval,
+                              style: const TextStyle(fontSize: 11),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton.tonal(
-                            onPressed: () =>
-                                _updateExpenseApproval(docName, 'Approved'),
-                            child: const Text('Approve Claim'),
+                            visualDensity: VisualDensity.compact,
                           ),
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Claimed: $sym${claimed.toStringAsFixed(2)} • Sanctioned: $sym${sanctioned.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                      Text(
+                        'Date: ${c['posting_date'] ?? ''} • Project: ${c['project'] ?? 'N/A'}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const Divider(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: <Widget>[
+                          TextButton.icon(
+                            onPressed: () => ErpDocSheet.showViewAndEdit(
+                              context,
+                              doctype: 'Expense Claim',
+                              docname: docName,
+                              onSaved: _loadAllData,
+                            ),
+                            icon: const Icon(Icons.edit_note_rounded, size: 18),
+                            label: const Text('View / Edit'),
+                          ),
+                          IconButton(
+                            tooltip: 'Download Expense Claim PDF',
+                            icon: const Icon(
+                              Icons.picture_as_pdf_rounded,
+                              size: 18,
+                            ),
+                            onPressed: () {
+                              ErpApiClient.instance.downloadAndOpenPdf(
+                                doctype: 'Expense Claim',
+                                docname: docName,
+                              );
+                            },
+                          ),
+                          if (approval == 'Draft' &&
+                              (session?.isApprover ?? true)) ...<Widget>[
+                            TextButton(
+                              onPressed: () =>
+                                  _updateExpenseApproval(docName, 'Rejected'),
+                              child: const Text(
+                                'Reject',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton.tonal(
+                              onPressed: () =>
+                                  _updateExpenseApproval(docName, 'Approved'),
+                              child: const Text('Approve Claim'),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );

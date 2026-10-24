@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/erp_doc_sheet.dart';
 
 class ProjectsAndStockScreen extends StatefulWidget {
   const ProjectsAndStockScreen({super.key, this.initialTab = 0});
@@ -28,6 +29,36 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
   List<Map<String, dynamic>> _itemPrices = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _items = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _customers = <Map<String, dynamic>>[];
+  List<String> _projectTemplates = <String>[
+    '99-Not Applicable',
+    '1-Project Visit Task Sequence',
+    '2-General/Corporate/NGO Project Task Sequence',
+    '3-Govt Lead Contract Task Sequence',
+    '4-Govt Sub Contract Task Sequence',
+    '5-DIBL Product Development Task Sequence',
+    '6-IoT Product Development Task Sequence',
+  ];
+  List<String> _costCenters = <String>[
+    '101 - Head Office CC - DIBL',
+    '102 - Dhaka CC - DIBL',
+    '103 - Chattogram CC - DIBL',
+    '104 - Jashore CC - DIBL',
+    '105 - Bogura CC - DIBL',
+    '106 - Sylhet CC - DIBL',
+    '107 - Barisal CC - DIBL',
+    '108 - Rangpur CC - DIBL',
+  ];
+  List<String> _departments = <String>[
+    'HR & Admin Department- DIBL',
+    'Branch Operations- DIBL',
+    'Marketing Department- DIBL',
+    'Supply Chain & Inventory- DIBL',
+    'IOT & Automation- DIBL',
+    'Accounts & Finance- DIBL',
+    'Research & Development- DIBL',
+    'Executive Management- DIBL',
+    'Head Office- DIBL',
+  ];
   List<String> _activityTypes = <String>[
     'Execution',
     'Site Survey',
@@ -64,17 +95,70 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
               'name',
               'project_name',
               'status',
+              'project_type',
+              'project_template',
+              'priority',
+              'department',
+              'cost_center',
               'percent_complete',
+              'expected_start_date',
               'expected_end_date',
+              'estimated_costing',
               'total_expense_claim',
               'total_costing_amount',
               'total_billed_amount',
               'gross_margin',
+              'customer',
             ],
-            limitPageLength: 50,
+            limitPageLength: 80,
           );
       if (mounted) {
         setState(() => _projects = projs);
+      }
+    } catch (_) {}
+
+    try {
+      final List<Map<String, dynamic>> tmplDocs = await ErpApiClient.instance
+          .getList(
+            'Project Template',
+            fields: <String>['name'],
+            limitPageLength: 40,
+          );
+      final List<Map<String, dynamic>> ccDocs = await ErpApiClient.instance
+          .getList(
+            'Cost Center',
+            fields: <String>['name'],
+            filters: <String, dynamic>{'is_group': 0, 'disabled': 0},
+            limitPageLength: 50,
+          );
+      final List<Map<String, dynamic>> deptDocs = await ErpApiClient.instance
+          .getList(
+            'Department',
+            fields: <String>['name'],
+            filters: <String, dynamic>{'is_group': 0, 'disabled': 0},
+            limitPageLength: 50,
+          );
+      if (mounted) {
+        setState(() {
+          if (tmplDocs.isNotEmpty) {
+            _projectTemplates = tmplDocs
+                .map((Map<String, dynamic> e) => (e['name'] ?? '').toString())
+                .where((String s) => s.isNotEmpty)
+                .toList();
+          }
+          if (ccDocs.isNotEmpty) {
+            _costCenters = ccDocs
+                .map((Map<String, dynamic> e) => (e['name'] ?? '').toString())
+                .where((String s) => s.isNotEmpty)
+                .toList();
+          }
+          if (deptDocs.isNotEmpty) {
+            _departments = deptDocs
+                .map((Map<String, dynamic> e) => (e['name'] ?? '').toString())
+                .where((String s) => s.isNotEmpty)
+                .toList();
+          }
+        });
       }
     } catch (_) {}
 
@@ -89,9 +173,11 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
               'status',
               'priority',
               'progress',
+              'exp_start_date',
               'exp_end_date',
+              'department',
             ],
-            limitPageLength: 60,
+            limitPageLength: 80,
           );
       if (mounted) {
         setState(() => _tasks = tList);
@@ -238,15 +324,26 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
     }
   }
 
-  Future<void> _showCreateTaskSheet() async {
+  Future<void> _showCreateTaskSheet({String? initialProject}) async {
     final UserSession? session = ErpApiClient.instance.session;
     final TextEditingController subjectCtrl = TextEditingController();
+    final TextEditingController descCtrl = TextEditingController();
     final TextEditingController assignToCtrl = TextEditingController();
-    String? selectedProject = _projects.isNotEmpty
-        ? (_projects.first['name'] ?? '').toString()
-        : (session != null && session.projects.isNotEmpty
-              ? session.projects.first
-              : null);
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final TextEditingController startDateCtrl = TextEditingController(
+      text: '$today 09:00:00',
+    );
+    final TextEditingController endDateCtrl = TextEditingController(
+      text: '$today 18:00:00',
+    );
+    String? selectedProject =
+        initialProject ??
+        (_projects.isNotEmpty
+            ? (_projects.first['name'] ?? '').toString()
+            : (session != null && session.projects.isNotEmpty
+                  ? session.projects.first
+                  : null));
+    String selectedDepartment = _departments.first;
     String priority = 'Medium';
 
     await showModalBottomSheet<void>(
@@ -268,12 +365,32 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'New Project Task & Assignment',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Text(
+                          'New Project Task & Assignment',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Task',
+                              initialValues: <String, dynamic>{
+                                'project': ?selectedProject,
+                              },
+                              onCreated: _loadData,
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All Fields'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -281,15 +398,23 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                       decoration: const InputDecoration(
                         labelText: 'Task Subject *',
                         border: OutlineInputBorder(),
+                        isDense: true,
                       ),
                     ),
                     const SizedBox(height: 12),
                     if (_projects.isNotEmpty)
                       DropdownButtonFormField<String>(
-                        initialValue: selectedProject,
+                        initialValue:
+                            _projects.any(
+                              (Map<String, dynamic> p) =>
+                                  p['name'] == selectedProject,
+                            )
+                            ? selectedProject
+                            : (_projects.first['name'] ?? '').toString(),
                         decoration: const InputDecoration(
                           labelText: 'Project',
                           border: OutlineInputBorder(),
+                          isDense: true,
                         ),
                         items: _projects.map((Map<String, dynamic> p) {
                           final String pName = (p['name'] ?? '').toString();
@@ -306,25 +431,144 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                         },
                       ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: priority,
-                      decoration: const InputDecoration(
-                        labelText: 'Priority',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const <String>['Low', 'Medium', 'High', 'Urgent']
-                          .map(
-                            (String p) => DropdownMenuItem<String>(
-                              value: p,
-                              child: Text(p),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: priority,
+                            decoration: const InputDecoration(
+                              labelText: 'Priority',
+                              border: OutlineInputBorder(),
+                              isDense: true,
                             ),
-                          )
-                          .toList(),
-                      onChanged: (String? v) {
-                        if (v != null) {
-                          setModalState(() => priority = v);
-                        }
-                      },
+                            items:
+                                const <String>[
+                                      'Low',
+                                      'Medium',
+                                      'High',
+                                      'Urgent',
+                                    ]
+                                    .map(
+                                      (String p) => DropdownMenuItem<String>(
+                                        value: p,
+                                        child: Text(p),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (String? v) {
+                              if (v != null) {
+                                setModalState(() => priority = v);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue:
+                                _departments.contains(selectedDepartment)
+                                ? selectedDepartment
+                                : _departments.first,
+                            decoration: const InputDecoration(
+                              labelText: 'Department',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: _departments
+                                .map(
+                                  (String d) => DropdownMenuItem<String>(
+                                    value: d,
+                                    child: Text(
+                                      d,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (String? v) {
+                              if (v != null) {
+                                setModalState(() => selectedDepartment = v);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: TextField(
+                            controller: startDateCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Start Date/Time *',
+                              border: const OutlineInputBorder(),
+                              isDense: true,
+                              suffixIcon: IconButton(
+                                icon: const Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 16,
+                                ),
+                                onPressed: () async {
+                                  final DateTime? picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: DateTime.now(),
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2035),
+                                  );
+                                  if (picked != null) {
+                                    setModalState(() {
+                                      startDateCtrl.text =
+                                          '${DateFormat('yyyy-MM-dd').format(picked)} 09:00:00';
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: endDateCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'End Date/Time *',
+                              border: const OutlineInputBorder(),
+                              isDense: true,
+                              suffixIcon: IconButton(
+                                icon: const Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 16,
+                                ),
+                                onPressed: () async {
+                                  final DateTime? picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: DateTime.now(),
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2035),
+                                  );
+                                  if (picked != null) {
+                                    setModalState(() {
+                                      endDateCtrl.text =
+                                          '${DateFormat('yyyy-MM-dd').format(picked)} 18:00:00';
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descCtrl,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Task Details / Description',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -334,6 +578,7 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                         labelText: 'Assign to User Email (Optional)',
                         hintText: 'engineer@dripirrigation.com.bd',
                         border: OutlineInputBorder(),
+                        isDense: true,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -353,6 +598,11 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                                   'subject': subjectCtrl.text.trim(),
                                   'project': ?selectedProject,
                                   'priority': priority,
+                                  'department': selectedDepartment,
+                                  'exp_start_date': startDateCtrl.text.trim(),
+                                  'exp_end_date': endDateCtrl.text.trim(),
+                                  if (descCtrl.text.trim().isNotEmpty)
+                                    'description': descCtrl.text.trim(),
                                   'status': 'Open',
                                 },
                               );
@@ -929,63 +1179,893 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
       ),
       body: RefreshIndicator(
         onRefresh: _loadData,
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: _projects.length,
-          itemBuilder: (BuildContext context, int i) {
-            final Map<String, dynamic> p = _projects[i];
-            final double pct =
-                (p['percent_complete'] as num?)?.toDouble() ?? 0.0;
-            final double expClaim =
-                (p['total_expense_claim'] as num?)?.toDouble() ?? 0.0;
-            final double billed =
-                (p['total_billed_amount'] as num?)?.toDouble() ?? 0.0;
+        child: _projects.isEmpty
+            ? ListView(
+                padding: const EdgeInsets.all(24),
+                children: const <Widget>[
+                  Center(
+                    child: Text(
+                      'No Projects found. Tap "+ New Project" to create one.',
+                    ),
+                  ),
+                ],
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
+                itemCount: _projects.length,
+                itemBuilder: (BuildContext context, int i) {
+                  final Map<String, dynamic> p = _projects[i];
+                  final String docName = (p['name'] ?? '').toString();
+                  final String projTitle = (p['project_name'] ?? docName)
+                      .toString();
+                  final String status = (p['status'] ?? 'Open').toString();
+                  final double pct =
+                      (p['percent_complete'] as num?)?.toDouble() ?? 0.0;
+                  final double expClaim =
+                      (p['total_expense_claim'] as num?)?.toDouble() ?? 0.0;
+                  final double billed =
+                      (p['total_billed_amount'] as num?)?.toDouble() ?? 0.0;
+                  final String dept = (p['department'] ?? '').toString();
+                  final String costCenter = (p['cost_center'] ?? '').toString();
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            '${p['project_name'] ?? p['name']} (${p['name']})',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => _openProjectDetailsAndEditSheet(p, sym),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: status == 'Completed'
+                                      ? Colors.green.withValues(alpha: 0.14)
+                                      : Colors.teal.withValues(alpha: 0.14),
+                                  child: Icon(
+                                    status == 'Completed'
+                                        ? Icons.check_circle_rounded
+                                        : Icons.folder_special_rounded,
+                                    size: 18,
+                                    color: status == 'Completed'
+                                        ? Colors.green
+                                        : Colors.teal,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        projTitle,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        <String>[
+                                          docName,
+                                          if (dept.isNotEmpty) dept,
+                                          if (costCenter.isNotEmpty) costCenter,
+                                        ].join(' • '),
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Chip(
+                                  label: Text(
+                                    '$status • ${pct.toInt()}%',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(
+                              value: (pct / 100.0).clamp(0.0, 1.0),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Expanded(
+                                  child: Text(
+                                    'Billed: $sym${NumberFormat('#,##0').format(billed)} • Claims: $sym${NumberFormat('#,##0').format(expClaim)}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                Wrap(
+                                  spacing: 6,
+                                  children: <Widget>[
+                                    ActionChip(
+                                      avatar: const Icon(
+                                        Icons.add_task_rounded,
+                                        size: 14,
+                                      ),
+                                      label: const Text(
+                                        '+ Task',
+                                        style: TextStyle(fontSize: 11),
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => _showCreateTaskSheet(
+                                        initialProject: docName,
+                                      ),
+                                    ),
+                                    ActionChip(
+                                      avatar: const Icon(
+                                        Icons.edit_note_rounded,
+                                        size: 15,
+                                      ),
+                                      label: const Text(
+                                        'View / Edit',
+                                        style: TextStyle(fontSize: 11),
+                                      ),
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () =>
+                                          _openProjectDetailsAndEditSheet(
+                                            p,
+                                            sym,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+
+  Future<void> _openProjectDetailsAndEditSheet(
+    Map<String, dynamic> summary,
+    String sym,
+  ) async {
+    final String docName = (summary['name'] ?? '').toString();
+    if (docName.isEmpty) {
+      return;
+    }
+
+    Map<String, dynamic> fullDoc = Map<String, dynamic>.from(summary);
+    try {
+      final Map<String, dynamic> loaded = await ErpApiClient.instance.getDoc(
+        'Project',
+        docName,
+      );
+      fullDoc = <String, dynamic>{...summary, ...loaded};
+    } catch (_) {}
+
+    if (!mounted) {
+      return;
+    }
+
+    final TextEditingController nameCtrl = TextEditingController(
+      text: (fullDoc['project_name'] ?? docName).toString(),
+    );
+    final TextEditingController startCtrl = TextEditingController(
+      text: (fullDoc['expected_start_date'] ?? '').toString(),
+    );
+    final TextEditingController endCtrl = TextEditingController(
+      text: (fullDoc['expected_end_date'] ?? '').toString(),
+    );
+    final TextEditingController estCostCtrl = TextEditingController(
+      text: ((fullDoc['estimated_costing'] as num?)?.toDouble() ?? 0)
+          .toStringAsFixed(0),
+    );
+    final TextEditingController customerCtrl = TextEditingController(
+      text: (fullDoc['customer'] ?? '').toString(),
+    );
+    final TextEditingController notesCtrl = TextEditingController(
+      text: (fullDoc['notes'] ?? '')
+          .toString()
+          .replaceAll(RegExp(r'<[^>]*>'), '')
+          .trim(),
+    );
+
+    String status = (fullDoc['status'] ?? 'Open').toString();
+    String projectType = (fullDoc['project_type'] ?? 'Internal').toString();
+    String priority = (fullDoc['priority'] ?? 'Medium').toString();
+    String isActive = (fullDoc['is_active'] ?? 'Yes').toString();
+    String selectedTemplate =
+        (fullDoc['project_template'] ?? '99-Not Applicable').toString();
+    if (!_projectTemplates.contains(selectedTemplate)) {
+      _projectTemplates = <String>[selectedTemplate, ..._projectTemplates];
+    }
+    String selectedCostCenter = (fullDoc['cost_center'] ?? _costCenters.first)
+        .toString();
+    if (selectedCostCenter.isNotEmpty &&
+        !_costCenters.contains(selectedCostCenter)) {
+      _costCenters = <String>[selectedCostCenter, ..._costCenters];
+    }
+    String selectedDepartment = (fullDoc['department'] ?? _departments.first)
+        .toString();
+    if (selectedDepartment.isNotEmpty &&
+        !_departments.contains(selectedDepartment)) {
+      _departments = <String>[selectedDepartment, ..._departments];
+    }
+    double pctComplete =
+        ((fullDoc['percent_complete'] as num?)?.toDouble() ?? 0.0).clamp(
+          0.0,
+          100.0,
+        );
+    bool saving = false;
+
+    final List<Map<String, dynamic>> projectTasks = _tasks
+        .where((Map<String, dynamic> t) => t['project'] == docName)
+        .toList();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.88,
+              maxChildSize: 0.96,
+              minChildSize: 0.5,
+              builder: (BuildContext context, ScrollController scrollCtrl) {
+                return Padding(
+                  padding: EdgeInsets.only(
+                    left: 18,
+                    right: 18,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  'Project $docName',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'Tap any field to edit • Linked Tasks (${projectTasks.length})',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        Chip(
-                          label: Text(
-                            '${p['status'] ?? 'Open'} • ${pct.toInt()}%',
-                            style: const TextStyle(fontSize: 11),
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              ErpDocSheet.showViewAndEdit(
+                                this.context,
+                                doctype: 'Project',
+                                docname: docName,
+                                onSaved: _loadData,
+                              );
+                            },
+                            icon: const Icon(Icons.tune_rounded, size: 16),
+                            label: const Text('All ERP Fields'),
                           ),
-                          visualDensity: VisualDensity.compact,
+                          IconButton(
+                            tooltip: 'Download Project PDF',
+                            icon: const Icon(
+                              Icons.picture_as_pdf_rounded,
+                              color: Colors.redAccent,
+                            ),
+                            onPressed: () =>
+                                ErpApiClient.instance.downloadAndOpenPdf(
+                                  doctype: 'Project',
+                                  docname: docName,
+                                ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 14),
+                      Expanded(
+                        child: ListView(
+                          controller: scrollCtrl,
+                          children: <Widget>[
+                            TextField(
+                              controller: nameCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Project Name *',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue:
+                                        const <String>[
+                                          'Open',
+                                          'Completed',
+                                          'Cancelled',
+                                        ].contains(status)
+                                        ? status
+                                        : 'Open',
+                                    decoration: const InputDecoration(
+                                      labelText: 'Status',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    items:
+                                        const <String>[
+                                              'Open',
+                                              'Completed',
+                                              'Cancelled',
+                                            ]
+                                            .map(
+                                              (String s) =>
+                                                  DropdownMenuItem<String>(
+                                                    value: s,
+                                                    child: Text(s),
+                                                  ),
+                                            )
+                                            .toList(),
+                                    onChanged: (String? v) {
+                                      if (v != null) {
+                                        setModalState(() => status = v);
+                                      }
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue:
+                                        const <String>[
+                                          'Low',
+                                          'Medium',
+                                          'High',
+                                        ].contains(priority)
+                                        ? priority
+                                        : 'Medium',
+                                    decoration: const InputDecoration(
+                                      labelText: 'Priority',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    items:
+                                        const <String>['Low', 'Medium', 'High']
+                                            .map(
+                                              (String p) =>
+                                                  DropdownMenuItem<String>(
+                                                    value: p,
+                                                    child: Text(p),
+                                                  ),
+                                            )
+                                            .toList(),
+                                    onChanged: (String? v) {
+                                      if (v != null) {
+                                        setModalState(() => priority = v);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<String>(
+                              initialValue: selectedTemplate,
+                              decoration: const InputDecoration(
+                                labelText: 'From Template (Project Template) *',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: _projectTemplates
+                                  .map(
+                                    (String t) => DropdownMenuItem<String>(
+                                      value: t,
+                                      child: Text(
+                                        t,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (String? v) {
+                                if (v != null) {
+                                  setModalState(() => selectedTemplate = v);
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<String>(
+                              initialValue: selectedCostCenter,
+                              decoration: const InputDecoration(
+                                labelText: 'Default Cost Center *',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              items: _costCenters
+                                  .map(
+                                    (String c) => DropdownMenuItem<String>(
+                                      value: c,
+                                      child: Text(
+                                        c,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (String? v) {
+                                if (v != null) {
+                                  setModalState(() => selectedCostCenter = v);
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue: selectedDepartment,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Department',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    items: _departments
+                                        .map(
+                                          (String d) =>
+                                              DropdownMenuItem<String>(
+                                                value: d,
+                                                child: Text(
+                                                  d,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                        )
+                                        .toList(),
+                                    onChanged: (String? v) {
+                                      if (v != null) {
+                                        setModalState(
+                                          () => selectedDepartment = v,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue:
+                                        const <String>[
+                                          'Internal',
+                                          'External',
+                                          'Other',
+                                        ].contains(projectType)
+                                        ? projectType
+                                        : 'Internal',
+                                    decoration: const InputDecoration(
+                                      labelText: 'Project Type',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    items:
+                                        const <String>[
+                                              'Internal',
+                                              'External',
+                                              'Other',
+                                            ]
+                                            .map(
+                                              (String pt) =>
+                                                  DropdownMenuItem<String>(
+                                                    value: pt,
+                                                    child: Text(pt),
+                                                  ),
+                                            )
+                                            .toList(),
+                                    onChanged: (String? v) {
+                                      if (v != null) {
+                                        setModalState(() => projectType = v);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: TextField(
+                                    controller: startCtrl,
+                                    decoration: InputDecoration(
+                                      labelText: 'Expected Start Date',
+                                      border: const OutlineInputBorder(),
+                                      isDense: true,
+                                      suffixIcon: IconButton(
+                                        icon: const Icon(
+                                          Icons.calendar_today_rounded,
+                                          size: 16,
+                                        ),
+                                        onPressed: () async {
+                                          final DateTime? picked =
+                                              await showDatePicker(
+                                                context: context,
+                                                initialDate:
+                                                    DateTime.tryParse(
+                                                      startCtrl.text,
+                                                    ) ??
+                                                    DateTime.now(),
+                                                firstDate: DateTime(2020),
+                                                lastDate: DateTime(2035),
+                                              );
+                                          if (picked != null) {
+                                            setModalState(() {
+                                              startCtrl.text = DateFormat(
+                                                'yyyy-MM-dd',
+                                              ).format(picked);
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: TextField(
+                                    controller: endCtrl,
+                                    decoration: InputDecoration(
+                                      labelText: 'Expected End Date',
+                                      border: const OutlineInputBorder(),
+                                      isDense: true,
+                                      suffixIcon: IconButton(
+                                        icon: const Icon(
+                                          Icons.calendar_today_rounded,
+                                          size: 16,
+                                        ),
+                                        onPressed: () async {
+                                          final DateTime? picked =
+                                              await showDatePicker(
+                                                context: context,
+                                                initialDate:
+                                                    DateTime.tryParse(
+                                                      endCtrl.text,
+                                                    ) ??
+                                                    DateTime.now(),
+                                                firstDate: DateTime(2020),
+                                                lastDate: DateTime(2035),
+                                              );
+                                          if (picked != null) {
+                                            setModalState(() {
+                                              endCtrl.text = DateFormat(
+                                                'yyyy-MM-dd',
+                                              ).format(picked);
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: TextField(
+                                    controller: estCostCtrl,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration: InputDecoration(
+                                      labelText: 'Estimated Cost ($sym)',
+                                      border: const OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue:
+                                        const <String>[
+                                          'Yes',
+                                          'No',
+                                        ].contains(isActive)
+                                        ? isActive
+                                        : 'Yes',
+                                    decoration: const InputDecoration(
+                                      labelText: 'Is Active',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    items: const <String>['Yes', 'No']
+                                        .map(
+                                          (String a) =>
+                                              DropdownMenuItem<String>(
+                                                value: a,
+                                                child: Text(a),
+                                              ),
+                                        )
+                                        .toList(),
+                                    onChanged: (String? v) {
+                                      if (v != null) {
+                                        setModalState(() => isActive = v);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: customerCtrl,
+                              decoration: InputDecoration(
+                                labelText: 'Customer (Optional)',
+                                border: const OutlineInputBorder(),
+                                isDense: true,
+                                suffixIcon: IconButton(
+                                  icon: const Icon(Icons.manage_search_rounded),
+                                  onPressed: () async {
+                                    final String? picked =
+                                        await ErpDocSheet.pickLinkValue(
+                                          context,
+                                          linkDocType: 'Customer',
+                                          currentValue: customerCtrl.text
+                                              .trim(),
+                                        );
+                                    if (picked != null) {
+                                      setModalState(
+                                        () => customerCtrl.text = picked,
+                                      );
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: <Widget>[
+                                Text(
+                                  'Completion: ${pctComplete.toInt()}%',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Slider(
+                                    value: pctComplete,
+                                    max: 100,
+                                    divisions: 20,
+                                    label: '${pctComplete.toInt()}%',
+                                    onChanged: (double v) {
+                                      setModalState(() => pctComplete = v);
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                            TextField(
+                              controller: notesCtrl,
+                              maxLines: 2,
+                              decoration: const InputDecoration(
+                                labelText: 'Project Notes / Scope',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Text(
+                                  'Project Tasks (${projectTasks.length})',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                FilledButton.tonalIcon(
+                                  onPressed: () {
+                                    Navigator.pop(ctx);
+                                    _showCreateTaskSheet(
+                                      initialProject: docName,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.add_task_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text('+ Add Task'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            if (projectTasks.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  'No tasks linked to this project yet.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              )
+                            else
+                              ...projectTasks.map((Map<String, dynamic> t) {
+                                final String tName = (t['name'] ?? '')
+                                    .toString();
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 6),
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Icon(
+                                      t['status'] == 'Completed'
+                                          ? Icons.task_alt_rounded
+                                          : Icons.pending_actions_rounded,
+                                      color: t['status'] == 'Completed'
+                                          ? Colors.green
+                                          : Colors.blue,
+                                      size: 18,
+                                    ),
+                                    title: Text(
+                                      '${t['subject'] ?? tName}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      '$tName • ${t['status'] ?? 'Open'} • ${t['priority'] ?? 'Medium'}',
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 16,
+                                    ),
+                                    onTap: () {
+                                      Navigator.pop(ctx);
+                                      ErpDocSheet.showViewAndEdit(
+                                        this.context,
+                                        doctype: 'Task',
+                                        docname: tName,
+                                        onSaved: _loadData,
+                                      );
+                                    },
+                                  ),
+                                );
+                              }),
+                          ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: (pct / 100.0).clamp(0.0, 1.0),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Billed: $sym${NumberFormat('#,##0').format(billed)} • Expense Claims: $sym${NumberFormat('#,##0').format(expClaim)}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
+                      ),
+                      const SizedBox(height: 10),
+                      SafeArea(
+                        top: false,
+                        child: FilledButton.icon(
+                          icon: saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.save_rounded),
+                          label: const Text('Save Project Changes'),
+                          onPressed: saving
+                              ? null
+                              : () async {
+                                  if (nameCtrl.text.trim().isEmpty) {
+                                    return;
+                                  }
+                                  setModalState(() => saving = true);
+                                  try {
+                                    await ErpApiClient.instance.updateDoc(
+                                      'Project',
+                                      docName,
+                                      <String, dynamic>{
+                                        'project_name': nameCtrl.text.trim(),
+                                        'status': status,
+                                        'priority': priority,
+                                        'project_template': selectedTemplate,
+                                        'cost_center': selectedCostCenter,
+                                        'department': selectedDepartment,
+                                        'project_type': projectType,
+                                        'is_active': isActive,
+                                        'percent_complete': pctComplete,
+                                        if (startCtrl.text.trim().isNotEmpty)
+                                          'expected_start_date': startCtrl.text
+                                              .trim(),
+                                        if (endCtrl.text.trim().isNotEmpty)
+                                          'expected_end_date': endCtrl.text
+                                              .trim(),
+                                        'estimated_costing':
+                                            double.tryParse(
+                                              estCostCtrl.text.trim(),
+                                            ) ??
+                                            0.0,
+                                        if (customerCtrl.text.trim().isNotEmpty)
+                                          'customer': customerCtrl.text.trim(),
+                                        if (notesCtrl.text.trim().isNotEmpty)
+                                          'notes': notesCtrl.text.trim(),
+                                      },
+                                    );
+                                    if (ctx.mounted) {
+                                      Navigator.pop(ctx);
+                                    }
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(this.context)
+                                          .showSnackBar(
+                                            SnackBar(
+                                              backgroundColor:
+                                                  Colors.green.shade700,
+                                              content: Text(
+                                                'Project $docName updated!',
+                                              ),
+                                            ),
+                                          );
+                                    }
+                                    await _loadData();
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(
+                                        this.context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          backgroundColor: Colors.red.shade700,
+                                          content: Text(
+                                            ErpApiClient.formatErrorMessage(e),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } finally {
+                                    if (ctx.mounted) {
+                                      setModalState(() => saving = false);
+                                    }
+                                  }
+                                },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             );
           },
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -999,7 +2079,7 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
           itemCount: _tasks.length,
           itemBuilder: (BuildContext context, int i) {
             final Map<String, dynamic> t = _tasks[i];
@@ -1010,6 +2090,12 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Task',
+                  docname: taskName,
+                  onSaved: _loadData,
+                ),
                 leading: Icon(
                   isCompleted
                       ? Icons.task_alt_rounded
@@ -1024,14 +2110,23 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                   '$taskName • Project: ${t['project'] ?? 'General'} • $status (${t['priority'] ?? 'Medium'})',
                 ),
                 trailing: PopupMenuButton<String>(
-                  onSelected: (String newStatus) async {
+                  onSelected: (String action) async {
+                    if (action == '__EDIT__') {
+                      await ErpDocSheet.showViewAndEdit(
+                        context,
+                        doctype: 'Task',
+                        docname: taskName,
+                        onSaved: _loadData,
+                      );
+                      return;
+                    }
                     try {
                       await ErpApiClient.instance.updateDoc(
                         'Task',
                         taskName,
                         <String, dynamic>{
-                          'status': newStatus,
-                          if (newStatus == 'Completed') 'progress': 100,
+                          'status': action,
+                          if (action == 'Completed') 'progress': 100,
                         },
                       );
                       await _loadData();
@@ -1039,6 +2134,11 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                   },
                   itemBuilder: (BuildContext context) =>
                       const <PopupMenuEntry<String>>[
+                        PopupMenuItem<String>(
+                          value: '__EDIT__',
+                          child: Text('View / Edit Full Task'),
+                        ),
+                        PopupMenuDivider(),
                         PopupMenuItem<String>(
                           value: 'Open',
                           child: Text('Set Open'),
@@ -1086,21 +2186,29 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                 ],
               )
             : ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
                 itemCount: _timesheets.length,
                 itemBuilder: (BuildContext context, int i) {
                   final Map<String, dynamic> ts = _timesheets[i];
+                  final String docName = (ts['name'] ?? '').toString();
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
                     child: ListTile(
+                      onTap: () => ErpDocSheet.showViewAndEdit(
+                        context,
+                        doctype: 'Timesheet',
+                        docname: docName,
+                        onSaved: _loadData,
+                      ),
                       leading: const Icon(Icons.timer_outlined),
                       title: Text(
-                        '${ts['employee_name'] ?? ts['employee'] ?? ts['name']} • ${ts['total_hours'] ?? 0} hrs',
+                        '${ts['employee_name'] ?? ts['employee'] ?? docName} • ${ts['total_hours'] ?? 0} hrs',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       subtitle: Text(
-                        '${ts['name']} • Date: ${ts['start_date'] ?? ''} • ${ts['status'] ?? 'Draft'}',
+                        '$docName • Date: ${ts['start_date'] ?? ''} • ${ts['status'] ?? 'Draft'}',
                       ),
+                      trailing: const Icon(Icons.edit_outlined, size: 18),
                     ),
                   );
                 },
@@ -1119,11 +2227,11 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
           children: <Widget>[
             const Text(
-              'Material Requests & Fulfillment',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              'Material Requests & Fulfillment (Tap any card to View / Edit)',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             if (_materialRequests.isEmpty)
@@ -1142,6 +2250,12 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                 return Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
+                    onTap: () => ErpDocSheet.showViewAndEdit(
+                      context,
+                      doctype: 'Material Request',
+                      docname: mrName,
+                      onSaved: _loadData,
+                    ),
                     leading: const CircleAvatar(
                       child: Icon(Icons.inventory_rounded),
                     ),
@@ -1161,23 +2275,45 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                 );
               }),
             const SizedBox(height: 16),
-            const Text(
-              'Recent Stock Entries (Transfers / Issues)',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                const Text(
+                  'Recent Stock Entries (Transfers / Issues)',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: () => ErpDocSheet.showCreate(
+                    context,
+                    doctype: 'Stock Entry',
+                    onCreated: _loadData,
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('+ Stock Entry'),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             ..._stockEntries.map((Map<String, dynamic> se) {
+              final String seName = (se['name'] ?? '').toString();
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
+                  onTap: () => ErpDocSheet.showViewAndEdit(
+                    context,
+                    doctype: 'Stock Entry',
+                    docname: seName,
+                    onSaved: _loadData,
+                  ),
                   leading: const Icon(Icons.compare_arrows_rounded),
                   title: Text(
-                    '${se['name']} • ${se['stock_entry_type'] ?? ''}',
+                    '$seName • ${se['stock_entry_type'] ?? ''}',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
                     'Date: ${se['posting_date'] ?? ''} • Project: ${se['project'] ?? 'N/A'}',
                   ),
+                  trailing: const Icon(Icons.edit_outlined, size: 18),
                 ),
               );
             }),
@@ -1197,7 +2333,7 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
           itemCount: _deliveryNotes.length,
           itemBuilder: (BuildContext context, int i) {
             final Map<String, dynamic> dn = _deliveryNotes[i];
@@ -1206,6 +2342,12 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Delivery Note',
+                  docname: docName,
+                  onSaved: _loadData,
+                ),
                 leading: const CircleAvatar(
                   child: Icon(Icons.assignment_turned_in_rounded),
                 ),
@@ -1236,75 +2378,114 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
   }
 
   Widget _buildStockBalanceTab(String sym) {
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          const Text(
-            'Warehouse Stock Balance (Bin)',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          ..._bins.map((Map<String, dynamic> bin) {
-            final double actualQty =
-                (bin['actual_qty'] as num?)?.toDouble() ?? 0;
-            final double projQty =
-                (bin['projected_qty'] as num?)?.toDouble() ?? 0;
-            final double valRate =
-                (bin['valuation_rate'] as num?)?.toDouble() ?? 0;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: actualQty > 0
-                      ? Colors.green.withValues(alpha: 0.15)
-                      : Colors.red.withValues(alpha: 0.15),
-                  child: Icon(
-                    Icons.warehouse_rounded,
-                    color: actualQty > 0 ? Colors.green : Colors.red,
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => ErpDocSheet.showCreate(
+          context,
+          doctype: 'Item Price',
+          onCreated: _loadData,
+        ),
+        icon: const Icon(Icons.sell_rounded),
+        label: const Text('New Item Price'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
+          children: <Widget>[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                const Text(
+                  'Warehouse Stock Balance (Bin)',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: () => ErpDocSheet.showCreate(
+                    context,
+                    doctype: 'Item',
+                    onCreated: _loadData,
+                  ),
+                  icon: const Icon(Icons.add_box_outlined, size: 16),
+                  label: const Text('+ New Item'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ..._bins.map((Map<String, dynamic> bin) {
+              final String binName = (bin['name'] ?? '').toString();
+              final double actualQty =
+                  (bin['actual_qty'] as num?)?.toDouble() ?? 0;
+              final double projQty =
+                  (bin['projected_qty'] as num?)?.toDouble() ?? 0;
+              final double valRate =
+                  (bin['valuation_rate'] as num?)?.toDouble() ?? 0;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  onTap: () => ErpDocSheet.showViewAndEdit(
+                    context,
+                    doctype: 'Bin',
+                    docname: binName,
+                    onSaved: _loadData,
+                  ),
+                  leading: CircleAvatar(
+                    backgroundColor: actualQty > 0
+                        ? Colors.green.withValues(alpha: 0.15)
+                        : Colors.red.withValues(alpha: 0.15),
+                    child: Icon(
+                      Icons.warehouse_rounded,
+                      color: actualQty > 0 ? Colors.green : Colors.red,
+                    ),
+                  ),
+                  title: Text(
+                    '${bin['item_code'] ?? ''} • Qty: ${NumberFormat('#,##0.##').format(actualQty)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    'Warehouse: ${bin['warehouse'] ?? ''}\nProjected: ${NumberFormat('#,##0.##').format(projQty)} • Valuation: $sym${NumberFormat('#,##0.##').format(valRate)}',
+                  ),
+                  isThreeLine: true,
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+            const Text(
+              'Item Price List (Tap to Edit Rate)',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            ..._itemPrices.map((Map<String, dynamic> ip) {
+              final String ipName = (ip['name'] ?? '').toString();
+              final double rate =
+                  (ip['price_list_rate'] as num?)?.toDouble() ?? 0;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  onTap: () => ErpDocSheet.showViewAndEdit(
+                    context,
+                    doctype: 'Item Price',
+                    docname: ipName,
+                    onSaved: _loadData,
+                  ),
+                  leading: const Icon(Icons.sell_rounded, color: Colors.teal),
+                  title: Text(
+                    '${ip['item_name'] ?? ip['item_code'] ?? ''} (${ip['item_code'] ?? ''})',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text('${ip['price_list'] ?? 'Standard Selling'}'),
+                  trailing: Text(
+                    '$sym${NumberFormat('#,##0.##').format(rate)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
-                title: Text(
-                  '${bin['item_code'] ?? ''} • Qty: ${NumberFormat('#,##0.##').format(actualQty)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  'Warehouse: ${bin['warehouse'] ?? ''}\nProjected: ${NumberFormat('#,##0.##').format(projQty)} • Valuation: $sym${NumberFormat('#,##0.##').format(valRate)}',
-                ),
-                isThreeLine: true,
-              ),
-            );
-          }),
-          const SizedBox(height: 16),
-          const Text(
-            'Item Price List',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          ..._itemPrices.map((Map<String, dynamic> ip) {
-            final double rate =
-                (ip['price_list_rate'] as num?)?.toDouble() ?? 0;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: const Icon(Icons.sell_rounded, color: Colors.teal),
-                title: Text(
-                  '${ip['item_name'] ?? ip['item_code'] ?? ''} (${ip['item_code'] ?? ''})',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text('${ip['price_list'] ?? 'Standard Selling'}'),
-                trailing: Text(
-                  '$sym${NumberFormat('#,##0.##').format(rate)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            );
-          }),
-        ],
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
@@ -1312,7 +2493,24 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
   Future<void> _showCreateProjectSheet() async {
     final UserSession? session = ErpApiClient.instance.session;
     final TextEditingController nameCtrl = TextEditingController();
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final TextEditingController startCtrl = TextEditingController(text: today);
+    final TextEditingController endCtrl = TextEditingController(
+      text: DateFormat('yyyy-MM-dd')
+          .format(DateTime.now().add(const Duration(days: 60))),
+    );
+    final TextEditingController estCostCtrl = TextEditingController(text: '0');
+    final TextEditingController customerCtrl = TextEditingController();
+    final TextEditingController notesCtrl = TextEditingController();
+
     String status = 'Open';
+    String priority = 'Medium';
+    String projectType = 'Internal';
+    String selectedTemplate = _projectTemplates.contains('99-Not Applicable')
+        ? '99-Not Applicable'
+        : _projectTemplates.first;
+    String selectedCostCenter = _costCenters.first;
+    String selectedDepartment = _departments.first;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1328,76 +2526,392 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                 top: 8,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  const Text(
-                    'New Project',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Project Name *',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: status,
-                    decoration: const InputDecoration(
-                      labelText: 'Status',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const <DropdownMenuItem<String>>[
-                      DropdownMenuItem<String>(
-                        value: 'Open',
-                        child: Text('Open'),
-                      ),
-                      DropdownMenuItem<String>(
-                        value: 'Completed',
-                        child: Text('Completed'),
-                      ),
-                    ],
-                    onChanged: (String? v) {
-                      if (v != null) {
-                        setModalState(() => status = v);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    icon: const Icon(Icons.save_rounded),
-                    label: const Text('Create Project'),
-                    onPressed: () async {
-                      if (nameCtrl.text.trim().isEmpty) {
-                        return;
-                      }
-                      Navigator.pop(ctx);
-                      try {
-                        await ErpApiClient.instance.createDoc(
-                          'Project',
-                          <String, dynamic>{
-                            if (session != null) 'company': session.company,
-                            'project_name': nameCtrl.text.trim(),
-                            'status': status,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        const Text(
+                          'New Project',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            ErpDocSheet.showCreate(
+                              this.context,
+                              doctype: 'Project',
+                              onCreated: _loadData,
+                            );
                           },
-                        );
-                        await _loadData();
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            SnackBar(
-                              content: Text(ErpApiClient.formatErrorMessage(e)),
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: const Text('All ERP Fields'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Project Name *',
+                        hintText: 'e.g. Gazipur 10-Acre Drip Irrigation',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedTemplate,
+                      decoration: const InputDecoration(
+                        labelText: 'From Template (Project Template) *',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: _projectTemplates
+                          .map(
+                            (String t) => DropdownMenuItem<String>(
+                              value: t,
+                              child: Text(t, overflow: TextOverflow.ellipsis),
                             ),
-                          );
+                          )
+                          .toList(),
+                      onChanged: (String? v) {
+                        if (v != null) {
+                          setModalState(() => selectedTemplate = v);
                         }
-                      }
-                    },
-                  ),
-                ],
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCostCenter,
+                      decoration: const InputDecoration(
+                        labelText: 'Default Cost Center *',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: _costCenters
+                          .map(
+                            (String c) => DropdownMenuItem<String>(
+                              value: c,
+                              child: Text(c, overflow: TextOverflow.ellipsis),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (String? v) {
+                        if (v != null) {
+                          setModalState(() => selectedCostCenter = v);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: selectedDepartment,
+                            decoration: const InputDecoration(
+                              labelText: 'Department',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: _departments
+                                .map(
+                                  (String d) => DropdownMenuItem<String>(
+                                    value: d,
+                                    child: Text(
+                                      d,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (String? v) {
+                              if (v != null) {
+                                setModalState(() => selectedDepartment = v);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: projectType,
+                            decoration: const InputDecoration(
+                              labelText: 'Project Type',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items:
+                                const <String>['Internal', 'External', 'Other']
+                                    .map(
+                                      (String pt) => DropdownMenuItem<String>(
+                                        value: pt,
+                                        child: Text(pt),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (String? v) {
+                              if (v != null) {
+                                setModalState(() => projectType = v);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: status,
+                            decoration: const InputDecoration(
+                              labelText: 'Status',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: const <DropdownMenuItem<String>>[
+                              DropdownMenuItem<String>(
+                                value: 'Open',
+                                child: Text('Open'),
+                              ),
+                              DropdownMenuItem<String>(
+                                value: 'Completed',
+                                child: Text('Completed'),
+                              ),
+                              DropdownMenuItem<String>(
+                                value: 'Cancelled',
+                                child: Text('Cancelled'),
+                              ),
+                            ],
+                            onChanged: (String? v) {
+                              if (v != null) {
+                                setModalState(() => status = v);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: priority,
+                            decoration: const InputDecoration(
+                              labelText: 'Priority',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: const <String>['Low', 'Medium', 'High']
+                                .map(
+                                  (String p) => DropdownMenuItem<String>(
+                                    value: p,
+                                    child: Text(p),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (String? v) {
+                              if (v != null) {
+                                setModalState(() => priority = v);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: TextField(
+                            controller: startCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Expected Start Date',
+                              border: const OutlineInputBorder(),
+                              isDense: true,
+                              suffixIcon: IconButton(
+                                icon: const Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 16,
+                                ),
+                                onPressed: () async {
+                                  final DateTime? picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: DateTime.now(),
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2035),
+                                  );
+                                  if (picked != null) {
+                                    setModalState(() {
+                                      startCtrl.text = DateFormat('yyyy-MM-dd')
+                                          .format(picked);
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: endCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Expected End Date',
+                              border: const OutlineInputBorder(),
+                              isDense: true,
+                              suffixIcon: IconButton(
+                                icon: const Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 16,
+                                ),
+                                onPressed: () async {
+                                  final DateTime? picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: DateTime.now().add(
+                                      const Duration(days: 60),
+                                    ),
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2035),
+                                  );
+                                  if (picked != null) {
+                                    setModalState(() {
+                                      endCtrl.text = DateFormat('yyyy-MM-dd')
+                                          .format(picked);
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: TextField(
+                            controller: estCostCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Estimated Cost',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: customerCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Customer (Opt)',
+                              border: const OutlineInputBorder(),
+                              isDense: true,
+                              suffixIcon: IconButton(
+                                icon: const Icon(
+                                  Icons.manage_search_rounded,
+                                  size: 18,
+                                ),
+                                onPressed: () async {
+                                  final String? picked =
+                                      await ErpDocSheet.pickLinkValue(
+                                        context,
+                                        linkDocType: 'Customer',
+                                        currentValue: customerCtrl.text.trim(),
+                                      );
+                                  if (picked != null) {
+                                    setModalState(
+                                      () => customerCtrl.text = picked,
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: notesCtrl,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Project Notes / Description',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.save_rounded),
+                      label: const Text('Create Project'),
+                      onPressed: () async {
+                        if (nameCtrl.text.trim().isEmpty) {
+                          return;
+                        }
+                        Navigator.pop(ctx);
+                        try {
+                          final Map<String, dynamic>
+                          created = await ErpApiClient.instance.createDoc(
+                            'Project',
+                            <String, dynamic>{
+                              if (session != null) 'company': session.company,
+                              'project_name': nameCtrl.text.trim(),
+                              'project_template': selectedTemplate,
+                              'cost_center': selectedCostCenter,
+                              'department': selectedDepartment,
+                              'project_type': projectType,
+                              'status': status,
+                              'priority': priority,
+                              'is_active': 'Yes',
+                              if (startCtrl.text.trim().isNotEmpty)
+                                'expected_start_date': startCtrl.text.trim(),
+                              if (endCtrl.text.trim().isNotEmpty)
+                                'expected_end_date': endCtrl.text.trim(),
+                              'estimated_costing':
+                                  double.tryParse(estCostCtrl.text.trim()) ??
+                                  0.0,
+                              if (customerCtrl.text.trim().isNotEmpty)
+                                'customer': customerCtrl.text.trim(),
+                              if (notesCtrl.text.trim().isNotEmpty)
+                                'notes': notesCtrl.text.trim(),
+                            },
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: Colors.green.shade700,
+                                content: Text(
+                                  'Project ${created['name'] ?? ''} created!',
+                                ),
+                              ),
+                            );
+                          }
+                          await _loadData();
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: Colors.red.shade700,
+                                content: Text(
+                                  ErpApiClient.formatErrorMessage(e),
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
             );
           },

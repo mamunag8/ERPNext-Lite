@@ -1125,9 +1125,91 @@ class ErpApiClient extends ChangeNotifier {
             'name': 'PROJ-0001',
             'project_name': 'Gazipur 10-Acre Smart Greenhouse Irrigation',
             'status': 'Open',
+            'project_type': 'External',
+            'project_template': '99-Not Applicable',
+            'priority': 'High',
+            'department': 'Engineering & Projects - DIBL',
+            'cost_center': '101 - Head Office CC - DIBL',
+            'company': 'Drip Irrigation BD Ltd',
+            'percent_complete_method': 'Task Completion',
             'percent_complete': 75,
+            'expected_start_date': '2026-09-01',
             'expected_end_date': '2026-11-15',
+            'estimated_costing': 350000,
+            'total_costing_amount': 125000,
+            'total_expense_claim': 18500,
+            'total_sales_amount': 480000,
+            'total_billed_amount': 320000,
+            'gross_margin': 176500,
+            'customer': 'Green Valley Agro Farms Ltd',
+            'is_active': 'Yes',
+            'notes': '10-acre automated inline drip & fertigation system with solar pump.',
           },
+          <String, dynamic>{
+            'name': 'PROJ-0002',
+            'project_name': 'Rajshahi 5-Acre High-Density Mango Orchard Drip',
+            'status': 'Open',
+            'project_type': 'External',
+            'project_template': '1-Project Visit Task Sequence',
+            'priority': 'Medium',
+            'department': 'Branch Operations- DIBL',
+            'cost_center': '105 - Bogura CC - DIBL',
+            'company': 'Drip Irrigation BD Ltd',
+            'percent_complete_method': 'Task Completion',
+            'percent_complete': 40,
+            'expected_start_date': '2026-10-01',
+            'expected_end_date': '2026-12-20',
+            'estimated_costing': 180000,
+            'total_costing_amount': 65000,
+            'total_expense_claim': 7500,
+            'total_sales_amount': 240000,
+            'total_billed_amount': 120000,
+            'gross_margin': 47500,
+            'customer': 'Barind Orchard Project',
+            'is_active': 'Yes',
+            'notes': 'Submersible pump filtration + 16mm inline dripper lines.',
+          },
+        ];
+      case 'Project Template':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{'name': '99-Not Applicable'},
+          <String, dynamic>{'name': '1-Project Visit Task Sequence'},
+          <String, dynamic>{
+            'name': '2-General/Corporate/NGO Project Task Sequence',
+          },
+          <String, dynamic>{'name': '3-Govt Lead Contract Task Sequence'},
+          <String, dynamic>{'name': '4-Govt Sub Contract Task Sequence'},
+          <String, dynamic>{'name': '5-DIBL Product Development Task Sequence'},
+          <String, dynamic>{'name': '6-IoT Product Development Task Sequence'},
+        ];
+      case 'Project Type':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{'name': 'Internal'},
+          <String, dynamic>{'name': 'External'},
+          <String, dynamic>{'name': 'Other'},
+        ];
+      case 'Cost Center':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{'name': '101 - Head Office CC - DIBL'},
+          <String, dynamic>{'name': '102 - Dhaka CC - DIBL'},
+          <String, dynamic>{'name': '103 - Chattogram CC - DIBL'},
+          <String, dynamic>{'name': '104 - Jashore CC - DIBL'},
+          <String, dynamic>{'name': '105 - Bogura CC - DIBL'},
+          <String, dynamic>{'name': '106 - Sylhet CC - DIBL'},
+          <String, dynamic>{'name': '107 - Barisal CC - DIBL'},
+          <String, dynamic>{'name': '108 - Rangpur CC - DIBL'},
+        ];
+      case 'Department':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{'name': 'HR & Admin Department- DIBL'},
+          <String, dynamic>{'name': 'Branch Operations- DIBL'},
+          <String, dynamic>{'name': 'Marketing Department- DIBL'},
+          <String, dynamic>{'name': 'Supply Chain & Inventory- DIBL'},
+          <String, dynamic>{'name': 'IOT & Automation- DIBL'},
+          <String, dynamic>{'name': 'Accounts & Finance- DIBL'},
+          <String, dynamic>{'name': 'Research & Development- DIBL'},
+          <String, dynamic>{'name': 'Executive Management- DIBL'},
+          <String, dynamic>{'name': 'Head Office- DIBL'},
         ];
       case 'Task':
         return <Map<String, dynamic>>[
@@ -1137,7 +1219,25 @@ class ErpApiClient extends ChangeNotifier {
             'project': 'PROJ-0001',
             'status': 'Working',
             'priority': 'High',
-            'exp_end_date': '2026-10-22',
+            'progress': 60,
+            'exp_start_date': '2026-10-18 09:00:00',
+            'exp_end_date': '2026-10-25 18:00:00',
+            'department': 'HR & Admin Department- DIBL',
+            'company': 'Drip Irrigation BD Ltd',
+            'description': 'Install 16mm inline dripper lines across Block A & B and verify 1.5 bar pressure.',
+          },
+          <String, dynamic>{
+            'name': 'TASK-2026-00052',
+            'subject': 'Main Header PVC Trenching & Hydro-Test',
+            'project': 'PROJ-0001',
+            'status': 'Completed',
+            'priority': 'Medium',
+            'progress': 100,
+            'exp_start_date': '2026-10-10 09:00:00',
+            'exp_end_date': '2026-10-15 18:00:00',
+            'department': 'Branch Operations- DIBL',
+            'company': 'Drip Irrigation BD Ltd',
+            'description': 'Completed 3-inch PVC main line trenching and test.',
           },
         ];
       case 'Timesheet':
@@ -1293,6 +1393,193 @@ class ErpApiClient extends ChangeNotifier {
     }
   }
 
+  final Map<String, List<Map<String, dynamic>>> _demoStore =
+      <String, List<Map<String, dynamic>>>{};
+  final Map<String, List<Map<String, dynamic>>> _doctypeFieldsCache =
+      <String, List<Map<String, dynamic>>>{};
+
+  List<Map<String, dynamic>> _getMutableDemoList(String doctype) {
+    return _demoStore.putIfAbsent(
+      doctype,
+      () =>
+          _getDemoList(doctype)
+              .map((Map<String, dynamic> e) => Map<String, dynamic>.from(e))
+              .toList(),
+    );
+  }
+
+  Map<String, dynamic> _applySmartServerDefaults(
+    String doctype,
+    Map<String, dynamic> payload,
+  ) {
+    final Map<String, dynamic> enriched = Map<String, dynamic>.from(payload);
+    final UserSession? s = _session;
+    final String defaultCompany = s?.company.isNotEmpty == true
+        ? s!.company
+        : 'Drip Irrigation BD Ltd';
+    final String defaultCostCenter = s?.costCenter.isNotEmpty == true
+        ? s!.costCenter
+        : (s != null && s.costCenters.isNotEmpty
+              ? s.costCenters.first
+              : '101 - Head Office CC - DIBL');
+    final String defaultDept = s?.department.isNotEmpty == true
+        ? s!.department
+        : (s != null && s.departments.isNotEmpty
+              ? s.departments.first
+              : 'HR & Admin Department- DIBL');
+    final String defaultWh = s != null && s.warehouses.isNotEmpty
+        ? s.warehouses.first
+        : '';
+    final String nowDate = DateTime.now().toIso8601String().substring(0, 10);
+    final String nowDateTime = DateTime.now()
+        .toIso8601String()
+        .substring(0, 19)
+        .replaceFirst('T', ' ');
+
+    if (doctype == 'Project') {
+      enriched.putIfAbsent('company', () => defaultCompany);
+      if ((enriched['project_template'] ?? '').toString().trim().isEmpty) {
+        enriched['project_template'] = '99-Not Applicable';
+      }
+      if ((enriched['cost_center'] ?? '').toString().trim().isEmpty) {
+        enriched['cost_center'] = defaultCostCenter;
+      }
+      if ((enriched['department'] ?? '').toString().trim().isEmpty &&
+          defaultDept.isNotEmpty) {
+        enriched['department'] = defaultDept;
+      }
+      enriched.putIfAbsent('status', () => 'Open');
+      enriched.putIfAbsent('is_active', () => 'Yes');
+      enriched.putIfAbsent('expected_start_date', () => nowDate);
+    } else if (doctype == 'Task') {
+      enriched.putIfAbsent('company', () => defaultCompany);
+      if ((enriched['exp_start_date'] ?? '').toString().trim().isEmpty) {
+        enriched['exp_start_date'] = nowDateTime;
+      }
+      if ((enriched['exp_end_date'] ?? '').toString().trim().isEmpty) {
+        enriched['exp_end_date'] = nowDateTime;
+      }
+      if ((enriched['department'] ?? '').toString().trim().isEmpty &&
+          defaultDept.isNotEmpty) {
+        enriched['department'] = defaultDept;
+      }
+      enriched.putIfAbsent('status', () => 'Open');
+      enriched.putIfAbsent('priority', () => 'Medium');
+    } else if (doctype == 'Sales Invoice' || doctype == 'Sales Order') {
+      enriched.putIfAbsent('company', () => defaultCompany);
+      if ((enriched['cost_center'] ?? '').toString().trim().isEmpty &&
+          defaultCostCenter.isNotEmpty) {
+        enriched['cost_center'] = defaultCostCenter;
+      }
+      if ((enriched['department'] ?? '').toString().trim().isEmpty &&
+          defaultDept.isNotEmpty) {
+        enriched['department'] = defaultDept;
+      }
+      if ((enriched['set_warehouse'] ?? '').toString().trim().isEmpty &&
+          defaultWh.isNotEmpty) {
+        enriched['set_warehouse'] = defaultWh;
+      }
+      if (doctype == 'Sales Order' &&
+          (enriched['delivery_date'] ?? '').toString().trim().isEmpty) {
+        enriched['delivery_date'] = nowDate;
+      }
+      if (enriched['items'] is List) {
+        final List<Map<String, dynamic>> updatedItems =
+            (enriched['items'] as List<dynamic>).map((dynamic raw) {
+              final Map<String, dynamic> row = Map<String, dynamic>.from(
+                raw as Map<dynamic, dynamic>,
+              );
+              if (doctype == 'Sales Invoice' &&
+                  (row['department'] ?? '').toString().trim().isEmpty &&
+                  defaultDept.isNotEmpty) {
+                row['department'] = defaultDept;
+              }
+              if ((row['cost_center'] ?? '').toString().trim().isEmpty &&
+                  defaultCostCenter.isNotEmpty) {
+                row['cost_center'] = defaultCostCenter;
+              }
+              if ((row['warehouse'] ?? '').toString().trim().isEmpty &&
+                  defaultWh.isNotEmpty) {
+                row['warehouse'] = defaultWh;
+              }
+              return row;
+            }).toList();
+        enriched['items'] = updatedItems;
+      }
+    } else if (doctype == 'Purchase Invoice') {
+      enriched.putIfAbsent('company', () => defaultCompany);
+      if (enriched['items'] is List) {
+        final List<Map<String, dynamic>> updatedItems =
+            (enriched['items'] as List<dynamic>).map((dynamic raw) {
+              final Map<String, dynamic> row = Map<String, dynamic>.from(
+                raw as Map<dynamic, dynamic>,
+              );
+              if ((row['department'] ?? '').toString().trim().isEmpty &&
+                  defaultDept.isNotEmpty) {
+                row['department'] = defaultDept;
+              }
+              return row;
+            }).toList();
+        enriched['items'] = updatedItems;
+      }
+    } else if (doctype == 'Payment Entry') {
+      enriched.putIfAbsent('company', () => defaultCompany);
+      if ((enriched['cost_center'] ?? '').toString().trim().isEmpty &&
+          defaultCostCenter.isNotEmpty) {
+        enriched['cost_center'] = defaultCostCenter;
+      }
+      if ((enriched['department'] ?? '').toString().trim().isEmpty &&
+          defaultDept.isNotEmpty) {
+        enriched['department'] = defaultDept;
+      }
+      if ((enriched['mode_of_payment'] ?? '').toString().trim().isEmpty) {
+        enriched['mode_of_payment'] = 'Cash';
+      }
+      if ((enriched['custom_particular_description'] ?? '')
+          .toString()
+          .trim()
+          .isEmpty) {
+        enriched['custom_particular_description'] =
+            (enriched['remarks'] ?? 'Payment Entry via Mobile App').toString();
+      }
+    } else if (doctype == 'CRM Deal') {
+      if ((enriched['expected_closure_date'] ?? '').toString().trim().isEmpty) {
+        enriched['expected_closure_date'] = nowDate;
+      }
+      if (enriched['expected_deal_value'] == null) {
+        enriched['expected_deal_value'] = enriched['deal_value'] ?? 0;
+      }
+      if ((enriched['custom_service_category'] ?? '')
+          .toString()
+          .trim()
+          .isEmpty) {
+        enriched['custom_service_category'] = 'Drip';
+      }
+      if ((enriched['custom_area_coverage_in_decimal'] ?? '')
+          .toString()
+          .trim()
+          .isEmpty) {
+        enriched['custom_area_coverage_in_decimal'] = '100';
+      }
+      if ((enriched['custom_gender_category'] ?? '')
+          .toString()
+          .trim()
+          .isEmpty) {
+        enriched['custom_gender_category'] = 'Male';
+      }
+    } else if (doctype == 'CRM Task') {
+      if ((enriched['due_date'] ?? '').toString().trim().isEmpty) {
+        enriched['due_date'] = nowDate;
+      }
+      if ((enriched['assigned_to'] ?? '').toString().trim().isEmpty &&
+          s != null &&
+          s.email.isNotEmpty) {
+        enriched['assigned_to'] = s.email;
+      }
+    }
+    return enriched;
+  }
+
   Future<List<Map<String, dynamic>>> getList(
     String doctype, {
     List<String> fields = const <String>['name'],
@@ -1303,7 +1590,7 @@ class ErpApiClient extends ChangeNotifier {
     int limitStart = 0,
   }) async {
     if (_isDemoSession) {
-      return _getDemoList(doctype);
+      return List<Map<String, dynamic>>.from(_getMutableDemoList(doctype));
     }
 
     final Map<String, dynamic> queryParameters = <String, dynamic>{
@@ -1336,7 +1623,7 @@ class ErpApiClient extends ChangeNotifier {
 
   Future<Map<String, dynamic>> getDoc(String doctype, String name) async {
     if (_isDemoSession) {
-      final List<Map<String, dynamic>> list = _getDemoList(doctype);
+      final List<Map<String, dynamic>> list = _getMutableDemoList(doctype);
       return list.firstWhere(
         (Map<String, dynamic> e) => e['name'] == name,
         orElse: () => <String, dynamic>{'name': name, 'doctype': doctype},
@@ -1352,19 +1639,369 @@ class ErpApiClient extends ChangeNotifier {
     return Map<String, dynamic>.from(data);
   }
 
+  /// Fetches a document along with the current user's ERPNext permissions
+  /// (`read`, `write`, `create`, `submit`, `cancel`, `delete`, `amend`).
+  Future<Map<String, dynamic>> getDocWithPermissions(
+    String doctype,
+    String name,
+  ) async {
+    Map<String, dynamic> defaultPerms = <String, dynamic>{
+      'read': 1,
+      'write': 1,
+      'create': 1,
+      'submit': 1,
+      'cancel': 1,
+      'delete': 1,
+    };
+    if (_isDemoSession) {
+      final Map<String, dynamic> doc = await getDoc(doctype, name);
+      return <String, dynamic>{'doc': doc, 'permissions': defaultPerms};
+    }
+
+    try {
+      final Response<dynamic> res = await _dio.get<dynamic>(
+        '/api/method/frappe.desk.form.load.getdoc',
+        queryParameters: <String, dynamic>{'doctype': doctype, 'name': name},
+      );
+      final Map<String, dynamic> body =
+          (res.data as Map<String, dynamic>?) ?? <String, dynamic>{};
+      final List<dynamic> docs =
+          (body['docs'] as List<dynamic>?) ?? <dynamic>[];
+      final Map<String, dynamic> docinfo =
+          (body['docinfo'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+      if (docinfo['permissions'] is Map) {
+        defaultPerms = Map<String, dynamic>.from(
+          docinfo['permissions'] as Map<dynamic, dynamic>,
+        );
+      }
+      if (docs.isNotEmpty && docs.first is Map) {
+        return <String, dynamic>{
+          'doc': Map<String, dynamic>.from(docs.first as Map<dynamic, dynamic>),
+          'permissions': defaultPerms,
+        };
+      }
+    } catch (_) {}
+
+    final Map<String, dynamic> doc = await getDoc(doctype, name);
+    return <String, dynamic>{'doc': doc, 'permissions': defaultPerms};
+  }
+
+  /// Fetches the live field metadata for [doctype] from ERPNext Desk (`getdoctype`)
+  /// including all Custom Fields & Property Setters, falling back to built-in definitions.
+  Future<List<Map<String, dynamic>>> getDocTypeFields(String doctype) async {
+    if (_doctypeFieldsCache.containsKey(doctype)) {
+      return _doctypeFieldsCache[doctype]!;
+    }
+    if (!_isDemoSession) {
+      try {
+        final Response<dynamic> res = await _dio.get<dynamic>(
+          '/api/method/frappe.desk.form.load.getdoctype',
+          queryParameters: <String, dynamic>{'doctype': doctype},
+        );
+        final Map<String, dynamic> body =
+            (res.data as Map<String, dynamic>?) ?? <String, dynamic>{};
+        final List<dynamic> docs =
+            (body['docs'] as List<dynamic>?) ?? <dynamic>[];
+        if (docs.isNotEmpty && docs.first is Map) {
+          final Map<String, dynamic> dtDoc = Map<String, dynamic>.from(
+            docs.first as Map<dynamic, dynamic>,
+          );
+          final List<dynamic> rawFields =
+              (dtDoc['fields'] as List<dynamic>?) ?? <dynamic>[];
+          final List<Map<String, dynamic>> parsed = rawFields
+              .whereType<Map<dynamic, dynamic>>()
+              .map((Map<dynamic, dynamic> f) => Map<String, dynamic>.from(f))
+              .where((Map<String, dynamic> f) {
+                final String ft = (f['fieldtype'] ?? '').toString();
+                final int hidden = (f['hidden'] as num?)?.toInt() ?? 0;
+                return hidden == 0 &&
+                    ft != 'Section Break' &&
+                    ft != 'Column Break' &&
+                    ft != 'Tab Break' &&
+                    ft != 'HTML' &&
+                    ft != 'Button' &&
+                    ft != 'Fold';
+              })
+              .toList();
+          if (parsed.isNotEmpty) {
+            _doctypeFieldsCache[doctype] = parsed;
+            return parsed;
+          }
+        }
+      } catch (_) {}
+    }
+
+    final List<Map<String, dynamic>> fallback = _getFallbackDocTypeFields(
+      doctype,
+    );
+    _doctypeFieldsCache[doctype] = fallback;
+    return fallback;
+  }
+
+  List<Map<String, dynamic>> _getFallbackDocTypeFields(String doctype) {
+    switch (doctype) {
+      case 'Project':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'project_name',
+            'label': 'Project Name',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'status',
+            'label': 'Status',
+            'fieldtype': 'Select',
+            'options': 'Open\nCompleted\nCancelled',
+            'default': 'Open',
+          },
+          <String, dynamic>{
+            'fieldname': 'project_template',
+            'label': 'From Template',
+            'fieldtype': 'Link',
+            'options': 'Project Template',
+            'reqd': 1,
+            'default': '99-Not Applicable',
+          },
+          <String, dynamic>{
+            'fieldname': 'cost_center',
+            'label': 'Default Cost Center',
+            'fieldtype': 'Link',
+            'options': 'Cost Center',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'department',
+            'label': 'Department',
+            'fieldtype': 'Link',
+            'options': 'Department',
+          },
+          <String, dynamic>{
+            'fieldname': 'project_type',
+            'label': 'Project Type',
+            'fieldtype': 'Link',
+            'options': 'Project Type',
+          },
+          <String, dynamic>{
+            'fieldname': 'priority',
+            'label': 'Priority',
+            'fieldtype': 'Select',
+            'options': 'Medium\nLow\nHigh',
+            'default': 'Medium',
+          },
+          <String, dynamic>{
+            'fieldname': 'is_active',
+            'label': 'Is Active',
+            'fieldtype': 'Select',
+            'options': 'Yes\nNo',
+            'default': 'Yes',
+          },
+          <String, dynamic>{
+            'fieldname': 'percent_complete_method',
+            'label': '% Complete Method',
+            'fieldtype': 'Select',
+            'options': 'Manual\nTask Completion\nTask Progress\nTask Weight',
+            'default': 'Task Completion',
+          },
+          <String, dynamic>{
+            'fieldname': 'percent_complete',
+            'label': '% Completed',
+            'fieldtype': 'Percent',
+          },
+          <String, dynamic>{
+            'fieldname': 'expected_start_date',
+            'label': 'Expected Start Date',
+            'fieldtype': 'Date',
+          },
+          <String, dynamic>{
+            'fieldname': 'expected_end_date',
+            'label': 'Expected End Date',
+            'fieldtype': 'Date',
+          },
+          <String, dynamic>{
+            'fieldname': 'estimated_costing',
+            'label': 'Estimated Cost',
+            'fieldtype': 'Currency',
+          },
+          <String, dynamic>{
+            'fieldname': 'customer',
+            'label': 'Customer',
+            'fieldtype': 'Link',
+            'options': 'Customer',
+          },
+          <String, dynamic>{
+            'fieldname': 'sales_order',
+            'label': 'Sales Order',
+            'fieldtype': 'Link',
+            'options': 'Sales Order',
+          },
+          <String, dynamic>{
+            'fieldname': 'company',
+            'label': 'Company',
+            'fieldtype': 'Link',
+            'options': 'Company',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'notes',
+            'label': 'Notes',
+            'fieldtype': 'Text Editor',
+          },
+        ];
+      case 'Task':
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'fieldname': 'subject',
+            'label': 'Subject',
+            'fieldtype': 'Data',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'project',
+            'label': 'Project',
+            'fieldtype': 'Link',
+            'options': 'Project',
+          },
+          <String, dynamic>{
+            'fieldname': 'status',
+            'label': 'Status',
+            'fieldtype': 'Select',
+            'options': 'Open\nWorking\nPending Review\nOverdue\nTemplate\nCompleted\nCancelled\nParent Task',
+            'default': 'Open',
+          },
+          <String, dynamic>{
+            'fieldname': 'priority',
+            'label': 'Priority',
+            'fieldtype': 'Select',
+            'options': 'Low\nMedium\nHigh\nUrgent',
+            'default': 'Medium',
+          },
+          <String, dynamic>{
+            'fieldname': 'progress',
+            'label': '% Progress',
+            'fieldtype': 'Percent',
+          },
+          <String, dynamic>{
+            'fieldname': 'exp_start_date',
+            'label': 'Expected Start Date',
+            'fieldtype': 'Datetime',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'exp_end_date',
+            'label': 'Expected End Date',
+            'fieldtype': 'Datetime',
+            'reqd': 1,
+          },
+          <String, dynamic>{
+            'fieldname': 'expected_time',
+            'label': 'Expected Time (Hours)',
+            'fieldtype': 'Float',
+          },
+          <String, dynamic>{
+            'fieldname': 'department',
+            'label': 'Department',
+            'fieldtype': 'Link',
+            'options': 'Department',
+          },
+          <String, dynamic>{
+            'fieldname': 'completed_by',
+            'label': 'Completed By',
+            'fieldtype': 'Link',
+            'options': 'User',
+          },
+          <String, dynamic>{
+            'fieldname': 'completed_on',
+            'label': 'Completed On',
+            'fieldtype': 'Date',
+          },
+          <String, dynamic>{
+            'fieldname': 'description',
+            'label': 'Task Details / Description',
+            'fieldtype': 'Text Editor',
+          },
+        ];
+      default:
+        return <Map<String, dynamic>>[];
+    }
+  }
+
+  /// Searches records of a linked DocType (`frappe.desk.search.search_link` or `getList`)
+  /// so Link fields can display a live dropdown/picker of allowed ERPNext records.
+  Future<List<String>> searchLinkOptions(
+    String linkDocType, {
+    String query = '',
+  }) async {
+    if (linkDocType.trim().isEmpty) {
+      return <String>[];
+    }
+    if (!_isDemoSession) {
+      try {
+        final Response<dynamic> res = await _dio.get<dynamic>(
+          '/api/method/frappe.desk.search.search_link',
+          queryParameters: <String, dynamic>{
+            'doctype': linkDocType,
+            'txt': query,
+            'page_length': 40,
+          },
+        );
+        final Map<String, dynamic> body =
+            (res.data as Map<String, dynamic>?) ?? <String, dynamic>{};
+        final List<dynamic> list =
+            (body['message'] as List<dynamic>?) ??
+            (body['results'] as List<dynamic>?) ??
+            <dynamic>[];
+        final List<String> vals = list
+            .whereType<Map<dynamic, dynamic>>()
+            .map((Map<dynamic, dynamic> r) => (r['value'] ?? '').toString())
+            .where((String s) => s.isNotEmpty)
+            .toList();
+        if (vals.isNotEmpty) {
+          return vals;
+        }
+      } catch (_) {}
+    }
+
+    try {
+      final List<Map<String, dynamic>> rows = await getList(
+        linkDocType,
+        fields: const <String>['name'],
+        listFilters: query.trim().isNotEmpty
+            ? <List<dynamic>>[
+                <dynamic>['name', 'like', '%${query.trim()}%'],
+              ]
+            : null,
+        limitPageLength: 50,
+      );
+      return rows
+          .map((Map<String, dynamic> r) => (r['name'] ?? '').toString())
+          .where((String s) => s.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return <String>[];
+    }
+  }
+
   Future<Map<String, dynamic>> createDoc(
     String doctype,
     Map<String, dynamic> payload,
   ) async {
+    final Map<String, dynamic> enriched = _applySmartServerDefaults(
+      doctype,
+      payload,
+    );
     if (_isDemoSession) {
-      return <String, dynamic>{
-        'name': 'DEMO-${DateTime.now().millisecondsSinceEpoch % 10000}',
-        ...payload,
+      final Map<String, dynamic> created = <String, dynamic>{
+        'name':
+            '${doctype.substring(0, doctype.length.clamp(0, 4)).toUpperCase()}-${DateTime.now().millisecondsSinceEpoch % 10000}',
+        ...enriched,
       };
+      _getMutableDemoList(doctype).insert(0, created);
+      return created;
     }
     final Response<dynamic> res = await _dio.post<dynamic>(
       '/api/resource/${Uri.encodeComponent(doctype)}',
-      data: payload,
+      data: enriched,
     );
     final Map<String, dynamic> body =
         (res.data as Map<String, dynamic>?) ?? <String, dynamic>{};
@@ -1379,7 +2016,20 @@ class ErpApiClient extends ChangeNotifier {
     Map<String, dynamic> payload,
   ) async {
     if (_isDemoSession) {
-      return <String, dynamic>{'name': name, ...payload};
+      final List<Map<String, dynamic>> list = _getMutableDemoList(doctype);
+      final int idx = list.indexWhere(
+        (Map<String, dynamic> e) => e['name'] == name,
+      );
+      if (idx >= 0) {
+        list[idx] = <String, dynamic>{...list[idx], ...payload, 'name': name};
+        return list[idx];
+      }
+      final Map<String, dynamic> updated = <String, dynamic>{
+        'name': name,
+        ...payload,
+      };
+      list.insert(0, updated);
+      return updated;
     }
     final Response<dynamic> res = await _dio.put<dynamic>(
       '/api/resource/${Uri.encodeComponent(doctype)}/${Uri.encodeComponent(name)}',
@@ -1390,6 +2040,17 @@ class ErpApiClient extends ChangeNotifier {
     final Map<dynamic, dynamic> data =
         (body['data'] as Map<dynamic, dynamic>?) ?? <dynamic, dynamic>{};
     return Map<String, dynamic>.from(data);
+  }
+
+  Future<void> deleteDoc(String doctype, String name) async {
+    if (_isDemoSession) {
+      _getMutableDemoList(doctype)
+          .removeWhere((Map<String, dynamic> e) => e['name'] == name);
+      return;
+    }
+    await _dio.delete<dynamic>(
+      '/api/resource/${Uri.encodeComponent(doctype)}/${Uri.encodeComponent(name)}',
+    );
   }
 
   Future<dynamic> callMethod(

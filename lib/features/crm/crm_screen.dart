@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/erp_doc_sheet.dart';
 
 class CrmAndTasksScreen extends StatefulWidget {
   const CrmAndTasksScreen({super.key, this.initialTab = 0});
@@ -1849,6 +1850,18 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                                     onTap: () => _convertLeadToDeal(l),
                                   ),
                                 ],
+                                const SizedBox(width: 6),
+                                _buildMaintenanceActionPill(
+                                  icon: Icons.edit_note_rounded,
+                                  label: 'Edit All Fields',
+                                  color: Colors.blueGrey.shade700,
+                                  onTap: () => ErpDocSheet.showViewAndEdit(
+                                    context,
+                                    doctype: _usingFcrm ? 'CRM Lead' : 'Lead',
+                                    docname: docName,
+                                    onSaved: _loadCrmData,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -2099,7 +2112,7 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                if (status != 'Won')
+                                if (status != 'Won') ...<Widget>[
                                   _buildMaintenanceActionPill(
                                     icon: Icons.emoji_events_rounded,
                                     label: 'Mark Won',
@@ -2112,6 +2125,21 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                                       newStatus: 'Won',
                                     ),
                                   ),
+                                  const SizedBox(width: 6),
+                                ],
+                                _buildMaintenanceActionPill(
+                                  icon: Icons.edit_note_rounded,
+                                  label: 'Edit All Fields',
+                                  color: Colors.blueGrey.shade700,
+                                  onTap: () => ErpDocSheet.showViewAndEdit(
+                                    context,
+                                    doctype: _usingFcrm
+                                        ? 'CRM Deal'
+                                        : 'Opportunity',
+                                    docname: docName,
+                                    onSaved: _loadCrmData,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -2181,11 +2209,18 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
               ),
               const SizedBox(height: 8),
               ..._crmTasks.map((Map<String, dynamic> t) {
+                final String docName = (t['name'] ?? '').toString();
                 final String status = (t['status'] ?? 'Todo').toString();
                 final bool done = status == 'Done' || status == 'Completed';
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
+                    onTap: () => ErpDocSheet.showViewAndEdit(
+                      context,
+                      doctype: 'CRM Task',
+                      docname: docName,
+                      onSaved: _loadCrmData,
+                    ),
                     leading: Icon(
                       done
                           ? Icons.check_circle_rounded
@@ -2193,7 +2228,7 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                       color: done ? Colors.green : Colors.orange,
                     ),
                     title: Text(
-                      (t['title'] ?? t['name'] ?? '').toString(),
+                      (t['title'] ?? docName).toString(),
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
@@ -2205,7 +2240,7 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                         try {
                           await ErpApiClient.instance.updateDoc(
                             'CRM Task',
-                            (t['name'] ?? '').toString(),
+                            docName,
                             <String, dynamic>{'status': nextStatus},
                           );
                           await _loadCrmData();
@@ -2224,7 +2259,8 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
             ),
             const SizedBox(height: 8),
             ..._todos.map((Map<String, dynamic> td) {
-              final String rawDesc = (td['description'] ?? td['name'] ?? '')
+              final String docName = (td['name'] ?? '').toString();
+              final String rawDesc = (td['description'] ?? docName)
                   .toString()
                   .replaceAll(RegExp(r'<[^>]*>'), '');
               final String status = (td['status'] ?? 'Open').toString();
@@ -2232,6 +2268,12 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
+                  onTap: () => ErpDocSheet.showViewAndEdit(
+                    context,
+                    doctype: 'ToDo',
+                    docname: docName,
+                    onSaved: _loadCrmData,
+                  ),
                   leading: Icon(
                     closed
                         ? Icons.check_box_rounded
@@ -2255,7 +2297,7 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                       try {
                         await ErpApiClient.instance.updateDoc(
                           'ToDo',
-                          (td['name'] ?? '').toString(),
+                          docName,
                           <String, dynamic>{
                             'status': closed ? 'Open' : 'Closed',
                           },
@@ -2310,6 +2352,7 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                 itemCount: _notes.length,
                 itemBuilder: (BuildContext context, int i) {
                   final Map<String, dynamic> n = _notes[i];
+                  final String docName = (n['name'] ?? '').toString();
                   final String title = (n['title'] ?? 'CRM Follow-up Note')
                       .toString();
                   final String content = (n['content'] ?? '')
@@ -2321,6 +2364,14 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                   return Card(
                     margin: const EdgeInsets.only(bottom: 10),
                     child: ListTile(
+                      onTap: docName.isEmpty
+                          ? null
+                          : () => ErpDocSheet.showViewAndEdit(
+                              context,
+                              doctype: _usingFcrm ? 'FCRM Note' : 'Note',
+                              docname: docName,
+                              onSaved: _loadCrmData,
+                            ),
                       leading: CircleAvatar(
                         backgroundColor: Colors.indigo.withValues(alpha: 0.12),
                         child: const Icon(
@@ -2336,6 +2387,7 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                         '$content\n${ref.isNotEmpty ? '$ref • ' : ''}${n['creation'] ?? ''}',
                       ),
                       isThreeLine: true,
+                      trailing: const Icon(Icons.edit_note_rounded, size: 20),
                     ),
                   );
                 },

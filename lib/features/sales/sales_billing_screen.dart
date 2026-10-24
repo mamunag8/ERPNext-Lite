@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/erp_doc_sheet.dart';
 
 class SalesBillingScreen extends StatefulWidget {
   const SalesBillingScreen({super.key, this.initialTab = 0});
@@ -650,6 +651,12 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
+                  onTap: () => ErpDocSheet.showViewAndEdit(
+                    context,
+                    doctype: 'Sales Invoice',
+                    docname: docName,
+                    onSaved: _loadSalesData,
+                  ),
                   title: Text(
                     '${inv['customer_name'] ?? inv['customer'] ?? ''} • $sym${NumberFormat('#,##0').format(gt)}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
@@ -657,16 +664,23 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
                   subtitle: Text(
                     '$docName • ${inv['posting_date'] ?? ''} • Due: $sym${NumberFormat('#,##0').format(out)} (${inv['status'] ?? ''})',
                   ),
-                  trailing: IconButton(
-                    tooltip: 'Download Invoice PDF',
-                    icon: const Icon(
-                      Icons.picture_as_pdf_rounded,
-                      color: Colors.redAccent,
-                    ),
-                    onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
-                      doctype: 'Sales Invoice',
-                      docname: docName,
-                    ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      IconButton(
+                        tooltip: 'Download Invoice PDF',
+                        icon: const Icon(
+                          Icons.picture_as_pdf_rounded,
+                          color: Colors.redAccent,
+                        ),
+                        onPressed: () =>
+                            ErpApiClient.instance.downloadAndOpenPdf(
+                              doctype: 'Sales Invoice',
+                              docname: docName,
+                            ),
+                      ),
+                      const Icon(Icons.edit_note_rounded, size: 20),
+                    ],
                   ),
                 ),
               );
@@ -696,6 +710,12 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Sales Order',
+                  docname: docName,
+                  onSaved: _loadSalesData,
+                ),
                 title: Text(
                   '${so['customer_name'] ?? so['customer'] ?? ''} • $sym${NumberFormat('#,##0').format(gt)}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
@@ -703,16 +723,22 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
                 subtitle: Text(
                   '$docName • Date: ${so['transaction_date'] ?? ''} • ${so['status'] ?? ''}',
                 ),
-                trailing: IconButton(
-                  tooltip: 'Download Sales Order PDF',
-                  icon: const Icon(
-                    Icons.picture_as_pdf_rounded,
-                    color: Colors.redAccent,
-                  ),
-                  onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
-                    doctype: 'Sales Order',
-                    docname: docName,
-                  ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    IconButton(
+                      tooltip: 'Download Sales Order PDF',
+                      icon: const Icon(
+                        Icons.picture_as_pdf_rounded,
+                        color: Colors.redAccent,
+                      ),
+                      onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
+                        doctype: 'Sales Order',
+                        docname: docName,
+                      ),
+                    ),
+                    const Icon(Icons.edit_note_rounded, size: 20),
+                  ],
                 ),
               ),
             );
@@ -741,6 +767,12 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Quotation',
+                  docname: docName,
+                  onSaved: _loadSalesData,
+                ),
                 title: Text(
                   '${q['customer_name'] ?? q['party_name'] ?? ''} • $sym${NumberFormat('#,##0').format(gt)}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
@@ -748,16 +780,22 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
                 subtitle: Text(
                   '$docName • ${q['transaction_date'] ?? ''} • ${q['status'] ?? ''}',
                 ),
-                trailing: IconButton(
-                  tooltip: 'Download Quotation PDF',
-                  icon: const Icon(
-                    Icons.picture_as_pdf_rounded,
-                    color: Colors.redAccent,
-                  ),
-                  onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
-                    doctype: 'Quotation',
-                    docname: docName,
-                  ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    IconButton(
+                      tooltip: 'Download Quotation PDF',
+                      icon: const Icon(
+                        Icons.picture_as_pdf_rounded,
+                        color: Colors.redAccent,
+                      ),
+                      onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
+                        doctype: 'Quotation',
+                        docname: docName,
+                      ),
+                    ),
+                    const Icon(Icons.edit_note_rounded, size: 20),
+                  ],
                 ),
               ),
             );
@@ -781,11 +819,18 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
           itemCount: _payments.length,
           itemBuilder: (BuildContext context, int i) {
             final Map<String, dynamic> p = _payments[i];
+            final String docName = (p['name'] ?? '').toString();
             final double paid = (p['paid_amount'] as num?)?.toDouble() ?? 0;
             final String pType = (p['payment_type'] ?? 'Receive').toString();
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Payment Entry',
+                  docname: docName,
+                  onSaved: _loadSalesData,
+                ),
                 leading: CircleAvatar(
                   backgroundColor: pType == 'Receive'
                       ? Colors.green.withValues(alpha: 0.15)
@@ -804,8 +849,9 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Text(
-                  '${p['name']} • $pType (${p['mode_of_payment'] ?? 'Cash/Bank'}) • ${p['posting_date'] ?? ''}',
+                  '$docName • $pType (${p['mode_of_payment'] ?? 'Cash/Bank'}) • ${p['posting_date'] ?? ''}',
                 ),
+                trailing: const Icon(Icons.edit_note_rounded, size: 20),
               ),
             );
           },
@@ -833,6 +879,12 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => ErpDocSheet.showViewAndEdit(
+                  context,
+                  doctype: 'Journal Entry',
+                  docname: docName,
+                  onSaved: _loadSalesData,
+                ),
                 leading: CircleAvatar(
                   backgroundColor: Colors.blueGrey.withValues(alpha: 0.15),
                   child: const Icon(
@@ -850,16 +902,22 @@ class _SalesBillingScreenState extends State<SalesBillingScreen>
                   overflow: TextOverflow.ellipsis,
                 ),
                 isThreeLine: true,
-                trailing: IconButton(
-                  tooltip: 'Download Journal Voucher PDF',
-                  icon: const Icon(
-                    Icons.picture_as_pdf_rounded,
-                    color: Colors.redAccent,
-                  ),
-                  onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
-                    doctype: 'Journal Entry',
-                    docname: docName,
-                  ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    IconButton(
+                      tooltip: 'Download Journal Voucher PDF',
+                      icon: const Icon(
+                        Icons.picture_as_pdf_rounded,
+                        color: Colors.redAccent,
+                      ),
+                      onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
+                        doctype: 'Journal Entry',
+                        docname: docName,
+                      ),
+                    ),
+                    const Icon(Icons.edit_note_rounded, size: 20),
+                  ],
                 ),
               ),
             );
