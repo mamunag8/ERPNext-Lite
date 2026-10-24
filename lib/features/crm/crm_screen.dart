@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/erp_doc_sheet.dart';
+import '../../core/widgets/erp_search_bar.dart';
 
 class CrmAndTasksScreen extends StatefulWidget {
   const CrmAndTasksScreen({super.key, this.initialTab = 0});
@@ -26,6 +27,9 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
 
   String _selectedLeadStage = 'All';
   String _selectedDealStage = 'All';
+  String _crmTaskQuery = '';
+  String _crmTaskStatusFilter = 'All';
+  String _crmNoteQuery = '';
 
   List<Map<String, dynamic>> _leads = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _deals = <Map<String, dynamic>>[];
@@ -2191,131 +2195,178 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
   }
 
   Widget _buildTasksTab() {
+    final List<Map<String, dynamic>> filteredTasks = _crmTasks.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _crmTaskStatusFilter) &&
+          ErpSearchBar.matchesQuery(row, _crmTaskQuery);
+    }).toList();
+
+    final List<Map<String, dynamic>> filteredTodos = _todos.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _crmTaskStatusFilter) &&
+          ErpSearchBar.matchesQuery(row, _crmTaskQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateTodoSheet,
         icon: const Icon(Icons.add_task_rounded),
         label: const Text('New Follow-up ToDo'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadCrmData,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-          children: <Widget>[
-            if (_crmTasks.isNotEmpty) ...<Widget>[
-              const Text(
-                'Frappe CRM Follow-up Tasks',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              ..._crmTasks.map((Map<String, dynamic> t) {
-                final String docName = (t['name'] ?? '').toString();
-                final String status = (t['status'] ?? 'Todo').toString();
-                final bool done = status == 'Done' || status == 'Completed';
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    onTap: () => ErpDocSheet.showViewAndEdit(
-                      context,
-                      doctype: 'CRM Task',
-                      docname: docName,
-                      onSaved: _loadCrmData,
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText:
+                'Search CRM Tasks & ToDos (title, assignee, due date, lead)...',
+            query: _crmTaskQuery,
+            onQueryChanged: (String v) => setState(() => _crmTaskQuery = v),
+            filters: const <String>['All', 'Open', 'Done', 'Closed', 'High'],
+            selectedFilter: _crmTaskStatusFilter,
+            onFilterChanged: (String f) =>
+                setState(() => _crmTaskStatusFilter = f),
+            resultCount: filteredTasks.length + filteredTodos.length,
+            totalCount: _crmTasks.length + _todos.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadCrmData,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                children: <Widget>[
+                  if (filteredTasks.isNotEmpty) ...<Widget>[
+                    Text(
+                      'Frappe CRM Follow-up Tasks (${filteredTasks.length})',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    leading: Icon(
-                      done
-                          ? Icons.check_circle_rounded
-                          : Icons.radio_button_unchecked_rounded,
-                      color: done ? Colors.green : Colors.orange,
-                    ),
-                    title: Text(
-                      (t['title'] ?? docName).toString(),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      'Priority: ${t['priority'] ?? 'Medium'} • Due: ${t['due_date'] ?? 'N/A'} ${t['reference_docname'] != null ? '• ${t['reference_docname']}' : ''}',
-                    ),
-                    trailing: TextButton(
-                      onPressed: () async {
-                        final String nextStatus = done ? 'Todo' : 'Done';
-                        try {
-                          await ErpApiClient.instance.updateDoc(
-                            'CRM Task',
-                            docName,
-                            <String, dynamic>{'status': nextStatus},
-                          );
-                          await _loadCrmData();
-                        } catch (_) {}
-                      },
-                      child: Text(done ? 'Reopen' : 'Mark Done'),
+                    const SizedBox(height: 8),
+                    ...filteredTasks.map((Map<String, dynamic> t) {
+                      final String docName = (t['name'] ?? '').toString();
+                      final String status = (t['status'] ?? 'Todo').toString();
+                      final bool done =
+                          status == 'Done' || status == 'Completed';
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          onTap: () => ErpDocSheet.showViewAndEdit(
+                            context,
+                            doctype: 'CRM Task',
+                            docname: docName,
+                            onSaved: _loadCrmData,
+                          ),
+                          leading: Icon(
+                            done
+                                ? Icons.check_circle_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            color: done ? Colors.green : Colors.orange,
+                          ),
+                          title: Text(
+                            (t['title'] ?? docName).toString(),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            'Priority: ${t['priority'] ?? 'Medium'} • Due: ${t['due_date'] ?? 'N/A'} ${t['reference_docname'] != null ? '• ${t['reference_docname']}' : ''}',
+                          ),
+                          trailing: TextButton(
+                            onPressed: () async {
+                              final String nextStatus = done ? 'Todo' : 'Done';
+                              try {
+                                await ErpApiClient.instance.updateDoc(
+                                  'CRM Task',
+                                  docName,
+                                  <String, dynamic>{'status': nextStatus},
+                                );
+                                await _loadCrmData();
+                              } catch (_) {}
+                            },
+                            child: Text(done ? 'Reopen' : 'Mark Done'),
+                          ),
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 16),
+                  ],
+                  Text(
+                    'Desk To-Do List (${filteredTodos.length})',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                );
-              }),
-              const SizedBox(height: 16),
-            ],
-            const Text(
-              'Desk To-Do List',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            ..._todos.map((Map<String, dynamic> td) {
-              final String docName = (td['name'] ?? '').toString();
-              final String rawDesc = (td['description'] ?? docName)
-                  .toString()
-                  .replaceAll(RegExp(r'<[^>]*>'), '');
-              final String status = (td['status'] ?? 'Open').toString();
-              final bool closed = status == 'Closed';
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  onTap: () => ErpDocSheet.showViewAndEdit(
-                    context,
-                    doctype: 'ToDo',
-                    docname: docName,
-                    onSaved: _loadCrmData,
-                  ),
-                  leading: Icon(
-                    closed
-                        ? Icons.check_box_rounded
-                        : Icons.check_box_outline_blank_rounded,
-                    color: closed ? Colors.green : null,
-                  ),
-                  title: Text(
-                    rawDesc,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    'Status: $status • Priority: ${td['priority'] ?? 'Medium'} • Due: ${td['date'] ?? 'N/A'}',
-                  ),
-                  trailing: IconButton(
-                    tooltip: closed ? 'Reopen ToDo' : 'Close ToDo',
-                    icon: Icon(
-                      closed ? Icons.replay_rounded : Icons.done_all_rounded,
-                    ),
-                    onPressed: () async {
-                      try {
-                        await ErpApiClient.instance.updateDoc(
-                          'ToDo',
-                          docName,
-                          <String, dynamic>{
-                            'status': closed ? 'Open' : 'Closed',
+                  const SizedBox(height: 8),
+                  ...filteredTodos.map((Map<String, dynamic> td) {
+                    final String docName = (td['name'] ?? '').toString();
+                    final String rawDesc = (td['description'] ?? docName)
+                        .toString()
+                        .replaceAll(RegExp(r'<[^>]*>'), '');
+                    final String status = (td['status'] ?? 'Open').toString();
+                    final bool closed = status == 'Closed';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        onTap: () => ErpDocSheet.showViewAndEdit(
+                          context,
+                          doctype: 'ToDo',
+                          docname: docName,
+                          onSaved: _loadCrmData,
+                        ),
+                        leading: Icon(
+                          closed
+                              ? Icons.check_box_rounded
+                              : Icons.check_box_outline_blank_rounded,
+                          color: closed ? Colors.green : null,
+                        ),
+                        title: Text(
+                          rawDesc,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          'Status: $status • Priority: ${td['priority'] ?? 'Medium'} • Due: ${td['date'] ?? 'N/A'}',
+                        ),
+                        trailing: IconButton(
+                          tooltip: closed ? 'Reopen ToDo' : 'Close ToDo',
+                          icon: Icon(
+                            closed
+                                ? Icons.replay_rounded
+                                : Icons.done_all_rounded,
+                          ),
+                          onPressed: () async {
+                            try {
+                              await ErpApiClient.instance.updateDoc(
+                                'ToDo',
+                                docName,
+                                <String, dynamic>{
+                                  'status': closed ? 'Open' : 'Closed',
+                                },
+                              );
+                              await _loadCrmData();
+                            } catch (_) {}
                           },
-                        );
-                        await _loadCrmData();
-                      } catch (_) {}
-                    },
-                  ),
-                ),
-              );
-            }),
-          ],
-        ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildNotesTab() {
+    final List<Map<String, dynamic>> filteredNotes = _notes.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesQuery(row, _crmNoteQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showQuickCrmNoteSheet(
@@ -2333,65 +2384,85 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
         icon: const Icon(Icons.note_add_rounded),
         label: const Text('Log CRM Note'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadCrmData,
-        child: _notes.isEmpty
-            ? ListView(
-                padding: const EdgeInsets.all(24),
-                children: const <Widget>[
-                  Center(
-                    child: Text(
-                      'No CRM Notes yet. Tap "+ Note" on any Lead/Deal or "+ Log CRM Note" below.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-                itemCount: _notes.length,
-                itemBuilder: (BuildContext context, int i) {
-                  final Map<String, dynamic> n = _notes[i];
-                  final String docName = (n['name'] ?? '').toString();
-                  final String title = (n['title'] ?? 'CRM Follow-up Note')
-                      .toString();
-                  final String content = (n['content'] ?? '')
-                      .toString()
-                      .replaceAll(RegExp(r'<[^>]*>'), '');
-                  final String ref =
-                      '${n['reference_doctype'] ?? ''} ${n['reference_docname'] ?? n['reference_name'] ?? ''}'
-                          .trim();
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: ListTile(
-                      onTap: docName.isEmpty
-                          ? null
-                          : () => ErpDocSheet.showViewAndEdit(
-                              context,
-                              doctype: _usingFcrm ? 'FCRM Note' : 'Note',
-                              docname: docName,
-                              onSaved: _loadCrmData,
-                            ),
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.indigo.withValues(alpha: 0.12),
-                        child: const Icon(
-                          Icons.note_alt_rounded,
-                          color: Colors.indigo,
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText: 'Search CRM Notes (title, content, linked Lead/Deal, author)...',
+            query: _crmNoteQuery,
+            onQueryChanged: (String v) => setState(() => _crmNoteQuery = v),
+            resultCount: filteredNotes.length,
+            totalCount: _notes.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadCrmData,
+              child: filteredNotes.isEmpty
+                  ? ListView(
+                      padding: const EdgeInsets.all(24),
+                      children: const <Widget>[
+                        Center(
+                          child: Text(
+                            'No matching CRM Notes found. Tap "+ Note" on any Lead/Deal or "+ Log CRM Note" below.',
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                      ),
-                      title: Text(
-                        title,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        '$content\n${ref.isNotEmpty ? '$ref • ' : ''}${n['creation'] ?? ''}',
-                      ),
-                      isThreeLine: true,
-                      trailing: const Icon(Icons.edit_note_rounded, size: 20),
+                      ],
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                      itemCount: filteredNotes.length,
+                      itemBuilder: (BuildContext context, int i) {
+                        final Map<String, dynamic> n = filteredNotes[i];
+                        final String docName = (n['name'] ?? '').toString();
+                        final String title =
+                            (n['title'] ?? 'CRM Follow-up Note').toString();
+                        final String content = (n['content'] ?? '')
+                            .toString()
+                            .replaceAll(RegExp(r'<[^>]*>'), '');
+                        final String ref =
+                            '${n['reference_doctype'] ?? ''} ${n['reference_docname'] ?? n['reference_name'] ?? ''}'
+                                .trim();
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: ListTile(
+                            onTap: docName.isEmpty
+                                ? null
+                                : () => ErpDocSheet.showViewAndEdit(
+                                    context,
+                                    doctype: _usingFcrm ? 'FCRM Note' : 'Note',
+                                    docname: docName,
+                                    onSaved: _loadCrmData,
+                                  ),
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.indigo.withValues(
+                                alpha: 0.12,
+                              ),
+                              child: const Icon(
+                                Icons.note_alt_rounded,
+                                color: Colors.indigo,
+                              ),
+                            ),
+                            title: Text(
+                              title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '$content\n${ref.isNotEmpty ? '$ref • ' : ''}${n['creation'] ?? ''}',
+                            ),
+                            isThreeLine: true,
+                            trailing: const Icon(
+                              Icons.edit_note_rounded,
+                              size: 20,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
+            ),
+          ),
+        ],
       ),
     );
   }

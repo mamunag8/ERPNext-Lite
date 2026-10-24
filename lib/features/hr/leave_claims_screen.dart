@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/erp_doc_sheet.dart';
+import '../../core/widgets/erp_search_bar.dart';
 
 class LeaveAndClaimsScreen extends StatefulWidget {
   const LeaveAndClaimsScreen({super.key, this.initialTab = 0});
@@ -42,6 +43,13 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
   ];
 
   List<Map<String, dynamic>> _advances = <Map<String, dynamic>>[];
+
+  String _leaveQuery = '';
+  String _leaveStatusFilter = 'All';
+  String _claimQuery = '';
+  String _claimStatusFilter = 'All';
+  String _advanceQuery = '';
+  String _advanceStatusFilter = 'All';
 
   static const List<String> _diblDepartments = <String>[
     'Branch Operations',
@@ -1545,351 +1553,441 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
   }
 
   Widget _buildLeavesTab(UserSession? session) {
+    final List<Map<String, dynamic>> filteredAllocations = _leaveAllocations
+        .where(
+          (Map<String, dynamic> row) =>
+              ErpSearchBar.matchesQuery(row, _leaveQuery),
+        )
+        .toList();
+
+    final List<Map<String, dynamic>> filteredLeaves = _leaves.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _leaveStatusFilter) &&
+          ErpSearchBar.matchesQuery(row, _leaveQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateLeaveSheet,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Apply Leave'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadAllData,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: <Widget>[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                const Text(
-                  'Leave Allocations',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-                TextButton.icon(
-                  onPressed: _showAllocateLeaveSheet,
-                  icon: const Icon(Icons.add_circle_outline, size: 16),
-                  label: const Text('Allocate Leave'),
-                ),
-              ],
-            ),
-            if (_leaveAllocations.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 6),
-              SizedBox(
-                height: 86,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _leaveAllocations.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 10),
-                  itemBuilder: (BuildContext context, int i) {
-                    final Map<String, dynamic> a = _leaveAllocations[i];
-                    final String allocName = (a['name'] ?? '').toString();
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: allocName.isEmpty
-                          ? null
-                          : () => ErpDocSheet.showViewAndEdit(
-                              context,
-                              doctype: 'Leave Allocation',
-                              docname: allocName,
-                              onSaved: _loadAllData,
-                            ),
-                      child: Container(
-                        width: 175,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .secondaryContainer
-                              .withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(14),
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText:
+                'Search Leaves & Allocations (employee, leave type, status)...',
+            query: _leaveQuery,
+            onQueryChanged: (String v) => setState(() => _leaveQuery = v),
+            filters: const <String>['All', 'Open', 'Approved', 'Rejected'],
+            selectedFilter: _leaveStatusFilter,
+            onFilterChanged: (String f) =>
+                setState(() => _leaveStatusFilter = f),
+            resultCount: filteredLeaves.length + filteredAllocations.length,
+            totalCount: _leaves.length + _leaveAllocations.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadAllData,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                children: <Widget>[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      Text(
+                        'Leave Allocations (${filteredAllocations.length})',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            Text(
-                              '${a['leave_type'] ?? ''}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                      ),
+                      TextButton.icon(
+                        onPressed: _showAllocateLeaveSheet,
+                        icon: const Icon(Icons.add_circle_outline, size: 16),
+                        label: const Text('Allocate Leave'),
+                      ),
+                    ],
+                  ),
+                  if (filteredAllocations.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      height: 86,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: filteredAllocations.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 10),
+                        itemBuilder: (BuildContext context, int i) {
+                          final Map<String, dynamic> a = filteredAllocations[i];
+                          final String allocName = (a['name'] ?? '').toString();
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: allocName.isEmpty
+                                ? null
+                                : () => ErpDocSheet.showViewAndEdit(
+                                    context,
+                                    doctype: 'Leave Allocation',
+                                    docname: allocName,
+                                    onSaved: _loadAllData,
+                                  ),
+                            child: Container(
+                              width: 175,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .secondaryContainer
+                                    .withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  Text(
+                                    '${a['leave_type'] ?? ''}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Allocated: ${a['total_leaves_allocated'] ?? 0} days',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  Text(
+                                    '${a['employee_name'] ?? a['employee'] ?? ''}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Allocated: ${a['total_leaves_allocated'] ?? 0} days',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            Text(
-                              '${a['employee_name'] ?? a['employee'] ?? ''}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  Text(
+                    'Leave Applications & Approvals (${filteredLeaves.length})',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...filteredLeaves.map((Map<String, dynamic> l) {
+                    final String status = (l['status'] ?? 'Open').toString();
+                    final String docName = (l['name'] ?? '').toString();
+                    final bool isOpen = status == 'Open';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => ErpDocSheet.showViewAndEdit(
+                          context,
+                          doctype: 'Leave Application',
+                          docname: docName,
+                          onSaved: _loadAllData,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: <Widget>[
+                                  Expanded(
+                                    child: Text(
+                                      '${l['employee_name'] ?? l['employee'] ?? ''} • ${l['leave_type'] ?? ''}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  ),
+                                  Chip(
+                                    label: Text(
+                                      status,
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
+                              Text(
+                                '${l['from_date']} → ${l['to_date']} (${l['total_leave_days'] ?? 1} days)',
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                              if (l['description'] != null &&
+                                  l['description'].toString().isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    l['description'].toString(),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                              const Divider(),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: <Widget>[
+                                  TextButton.icon(
+                                    onPressed: () =>
+                                        ErpDocSheet.showViewAndEdit(
+                                          context,
+                                          doctype: 'Leave Application',
+                                          docname: docName,
+                                          onSaved: _loadAllData,
+                                        ),
+                                    icon: const Icon(
+                                      Icons.edit_note_rounded,
+                                      size: 18,
+                                    ),
+                                    label: const Text('View / Edit'),
+                                  ),
+                                  if (isOpen &&
+                                      (session?.isApprover ??
+                                          true)) ...<Widget>[
+                                    TextButton.icon(
+                                      onPressed: () => _updateLeaveStatus(
+                                        docName,
+                                        'Rejected',
+                                      ),
+                                      icon: const Icon(
+                                        Icons.close_rounded,
+                                        color: Colors.red,
+                                        size: 18,
+                                      ),
+                                      label: const Text(
+                                        'Reject',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    FilledButton.tonalIcon(
+                                      onPressed: () => _updateLeaveStatus(
+                                        docName,
+                                        'Approved',
+                                      ),
+                                      icon: const Icon(
+                                        Icons.check_rounded,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Approve'),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
-                  },
-                ),
+                  }),
+                ],
               ),
-              const SizedBox(height: 16),
-            ],
-            const Text(
-              'Leave Applications & Approvals',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            ..._leaves.map((Map<String, dynamic> l) {
-              final String status = (l['status'] ?? 'Open').toString();
-              final String docName = (l['name'] ?? '').toString();
-              final bool isOpen = status == 'Open';
-              return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => ErpDocSheet.showViewAndEdit(
-                    context,
-                    doctype: 'Leave Application',
-                    docname: docName,
-                    onSaved: _loadAllData,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: <Widget>[
-                            Expanded(
-                              child: Text(
-                                '${l['employee_name'] ?? l['employee'] ?? ''} • ${l['leave_type'] ?? ''}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
-                              ),
-                            ),
-                            Chip(
-                              label: Text(
-                                status,
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ],
-                        ),
-                        Text(
-                          '${l['from_date']} → ${l['to_date']} (${l['total_leave_days'] ?? 1} days)',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        if (l['description'] != null &&
-                            l['description'].toString().isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              l['description'].toString(),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                        const Divider(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: <Widget>[
-                            TextButton.icon(
-                              onPressed: () => ErpDocSheet.showViewAndEdit(
-                                context,
-                                doctype: 'Leave Application',
-                                docname: docName,
-                                onSaved: _loadAllData,
-                              ),
-                              icon: const Icon(
-                                Icons.edit_note_rounded,
-                                size: 18,
-                              ),
-                              label: const Text('View / Edit'),
-                            ),
-                            if (isOpen &&
-                                (session?.isApprover ?? true)) ...<Widget>[
-                              TextButton.icon(
-                                onPressed: () =>
-                                    _updateLeaveStatus(docName, 'Rejected'),
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  color: Colors.red,
-                                  size: 18,
-                                ),
-                                label: const Text(
-                                  'Reject',
-                                  style: TextStyle(color: Colors.red),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              FilledButton.tonalIcon(
-                                onPressed: () =>
-                                    _updateLeaveStatus(docName, 'Approved'),
-                                icon: const Icon(Icons.check_rounded, size: 18),
-                                label: const Text('Approve'),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildExpenseClaimsTab(UserSession? session, String sym) {
+    final List<Map<String, dynamic>> filteredClaims = _expenseClaims.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(
+            row,
+            _claimStatusFilter,
+            field: 'approval_status',
+          ) &&
+          ErpSearchBar.matchesQuery(row, _claimQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateExpenseClaimSheet,
         icon: const Icon(Icons.add_a_photo_rounded),
         label: const Text('New Expense Claim'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadAllData,
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: _expenseClaims.length,
-          itemBuilder: (BuildContext context, int i) {
-            final Map<String, dynamic> c = _expenseClaims[i];
-            final String docName = (c['name'] ?? '').toString();
-            final String approval = (c['approval_status'] ?? 'Draft')
-                .toString();
-            final double claimed =
-                (c['total_claimed_amount'] as num?)?.toDouble() ?? 0;
-            final double sanctioned =
-                (c['total_sanctioned_amount'] as num?)?.toDouble() ?? 0;
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText: 'Search Expense Claims (ID, employee, project, date, status)...',
+            query: _claimQuery,
+            onQueryChanged: (String v) => setState(() => _claimQuery = v),
+            filters: const <String>['All', 'Draft', 'Approved', 'Rejected'],
+            selectedFilter: _claimStatusFilter,
+            onFilterChanged: (String f) =>
+                setState(() => _claimStatusFilter = f),
+            resultCount: filteredClaims.length,
+            totalCount: _expenseClaims.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadAllData,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                itemCount: filteredClaims.length,
+                itemBuilder: (BuildContext context, int i) {
+                  final Map<String, dynamic> c = filteredClaims[i];
+                  final String docName = (c['name'] ?? '').toString();
+                  final String approval = (c['approval_status'] ?? 'Draft')
+                      .toString();
+                  final double claimed =
+                      (c['total_claimed_amount'] as num?)?.toDouble() ?? 0;
+                  final double sanctioned =
+                      (c['total_sanctioned_amount'] as num?)?.toDouble() ?? 0;
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => ErpDocSheet.showViewAndEdit(
-                  context,
-                  doctype: 'Expense Claim',
-                  docname: docName,
-                  onSaved: _loadAllData,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              '${c['employee_name'] ?? c['employee'] ?? ''} ($docName)',
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => ErpDocSheet.showViewAndEdit(
+                        context,
+                        doctype: 'Expense Claim',
+                        docname: docName,
+                        onSaved: _loadAllData,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: <Widget>[
+                                Expanded(
+                                  child: Text(
+                                    '${c['employee_name'] ?? c['employee'] ?? ''} ($docName)',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                                Chip(
+                                  label: Text(
+                                    approval,
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Claimed: $sym${claimed.toStringAsFixed(2)} • Sanctioned: $sym${sanctioned.toStringAsFixed(2)}',
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
                               ),
                             ),
-                          ),
-                          Chip(
-                            label: Text(
-                              approval,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Claimed: $sym${claimed.toStringAsFixed(2)} • Sanctioned: $sym${sanctioned.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                      Text(
-                        'Date: ${c['posting_date'] ?? ''} • Project: ${c['project'] ?? 'N/A'}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: <Widget>[
-                          TextButton.icon(
-                            onPressed: () => ErpDocSheet.showViewAndEdit(
-                              context,
-                              doctype: 'Expense Claim',
-                              docname: docName,
-                              onSaved: _loadAllData,
-                            ),
-                            icon: const Icon(Icons.edit_note_rounded, size: 18),
-                            label: const Text('View / Edit'),
-                          ),
-                          IconButton(
-                            tooltip: 'Download Expense Claim PDF',
-                            icon: const Icon(
-                              Icons.picture_as_pdf_rounded,
-                              size: 18,
-                            ),
-                            onPressed: () {
-                              ErpApiClient.instance.downloadAndOpenPdf(
-                                doctype: 'Expense Claim',
-                                docname: docName,
-                              );
-                            },
-                          ),
-                          if (approval == 'Draft' &&
-                              (session?.isApprover ?? true)) ...<Widget>[
-                            TextButton(
-                              onPressed: () =>
-                                  _updateExpenseApproval(docName, 'Rejected'),
-                              child: const Text(
-                                'Reject',
-                                style: TextStyle(color: Colors.red),
+                            Text(
+                              'Date: ${c['posting_date'] ?? ''} • Project: ${c['project'] ?? 'N/A'}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            FilledButton.tonal(
-                              onPressed: () =>
-                                  _updateExpenseApproval(docName, 'Approved'),
-                              child: const Text('Approve Claim'),
+                            const Divider(),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: <Widget>[
+                                TextButton.icon(
+                                  onPressed: () => ErpDocSheet.showViewAndEdit(
+                                    context,
+                                    doctype: 'Expense Claim',
+                                    docname: docName,
+                                    onSaved: _loadAllData,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.edit_note_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text('View / Edit'),
+                                ),
+                                IconButton(
+                                  tooltip: 'Download Expense Claim PDF',
+                                  icon: const Icon(
+                                    Icons.picture_as_pdf_rounded,
+                                    size: 18,
+                                  ),
+                                  onPressed: () {
+                                    ErpApiClient.instance.downloadAndOpenPdf(
+                                      doctype: 'Expense Claim',
+                                      docname: docName,
+                                    );
+                                  },
+                                ),
+                                if (approval == 'Draft' &&
+                                    (session?.isApprover ?? true)) ...<Widget>[
+                                  TextButton(
+                                    onPressed: () => _updateExpenseApproval(
+                                      docName,
+                                      'Rejected',
+                                    ),
+                                    child: const Text(
+                                      'Reject',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  FilledButton.tonal(
+                                    onPressed: () => _updateExpenseApproval(
+                                      docName,
+                                      'Approved',
+                                    ),
+                                    child: const Text('Approve Claim'),
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
-                        ],
+                        ),
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildAdvancesTab(UserSession? session, String sym) {
+    final List<Map<String, dynamic>> filteredAdvances = _advances.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _advanceStatusFilter) &&
+          ErpSearchBar.matchesQuery(row, _advanceQuery);
+    }).toList();
+
     // Replicates DIBL's `EA List Footer Summary` Client Script 4-Card Summary
     double totalAdvance = 0;
     double totalClaimed = 0;
     double totalReturn = 0;
     double totalPending = 0;
 
-    for (final Map<String, dynamic> row in _advances) {
+    for (final Map<String, dynamic> row in filteredAdvances) {
       final double adv = (row['advance_amount'] as num?)?.toDouble() ?? 0;
       final double claimed = (row['claimed_amount'] as num?)?.toDouble() ?? 0;
       final double ret = (row['return_amount'] as num?)?.toDouble() ?? 0;
@@ -1905,70 +2003,93 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
         icon: const Icon(Icons.add_rounded),
         label: const Text('New Advance'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadAllData,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: <Widget>[
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-              childAspectRatio: 2.3,
-              children: <Widget>[
-                _buildAdvanceSummaryCard(
-                  'TOTAL ADVANCE',
-                  '$sym ${NumberFormat('#,##0.00').format(totalAdvance)}',
-                  const Color(0xFF1A73E8),
-                ),
-                _buildAdvanceSummaryCard(
-                  'TOTAL CLAIMED',
-                  '$sym ${NumberFormat('#,##0.00').format(totalClaimed)}',
-                  const Color(0xFF28A745),
-                ),
-                _buildAdvanceSummaryCard(
-                  'TOTAL RETURNED',
-                  '$sym ${NumberFormat('#,##0.00').format(totalReturn)}',
-                  const Color(0xFFFD7E14),
-                ),
-                _buildAdvanceSummaryCard(
-                  'TOTAL PENDING',
-                  '$sym ${NumberFormat('#,##0.00').format(totalPending)}',
-                  const Color(0xFFDC3545),
-                ),
-              ],
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText: 'Search Employee Advances (employee, purpose, project, status)...',
+            query: _advanceQuery,
+            onQueryChanged: (String v) => setState(() => _advanceQuery = v),
+            filters: const <String>[
+              'All',
+              'Draft',
+              'Paid',
+              'Claimed',
+              'Unpaid',
+            ],
+            selectedFilter: _advanceStatusFilter,
+            onFilterChanged: (String f) =>
+                setState(() => _advanceStatusFilter = f),
+            resultCount: filteredAdvances.length,
+            totalCount: _advances.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadAllData,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                children: <Widget>[
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 2.3,
+                    children: <Widget>[
+                      _buildAdvanceSummaryCard(
+                        'TOTAL ADVANCE',
+                        '$sym ${NumberFormat('#,##0.00').format(totalAdvance)}',
+                        const Color(0xFF1A73E8),
+                      ),
+                      _buildAdvanceSummaryCard(
+                        'TOTAL CLAIMED',
+                        '$sym ${NumberFormat('#,##0.00').format(totalClaimed)}',
+                        const Color(0xFF28A745),
+                      ),
+                      _buildAdvanceSummaryCard(
+                        'TOTAL RETURNED',
+                        '$sym ${NumberFormat('#,##0.00').format(totalReturn)}',
+                        const Color(0xFFFD7E14),
+                      ),
+                      _buildAdvanceSummaryCard(
+                        'TOTAL PENDING',
+                        '$sym ${NumberFormat('#,##0.00').format(totalPending)}',
+                        const Color(0xFFDC3545),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ...filteredAdvances.map((Map<String, dynamic> adv) {
+                    final double amount =
+                        (adv['advance_amount'] as num?)?.toDouble() ?? 0;
+                    final double claimed =
+                        (adv['claimed_amount'] as num?)?.toDouble() ?? 0;
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        onTap: () => _showAdvanceDetailsSheet(adv, sym),
+                        title: Text(
+                          '${adv['employee_name'] ?? adv['employee'] ?? ''} • $sym${amount.toStringAsFixed(0)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          '${adv['purpose'] ?? ''}\nProject: ${adv['project'] ?? 'General'} • Claimed: $sym${claimed.toStringAsFixed(0)}',
+                        ),
+                        isThreeLine: true,
+                        trailing: Chip(
+                          label: Text(
+                            (adv['status'] ?? 'Draft').toString(),
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            ..._advances.map((Map<String, dynamic> adv) {
-              final double amount =
-                  (adv['advance_amount'] as num?)?.toDouble() ?? 0;
-              final double claimed =
-                  (adv['claimed_amount'] as num?)?.toDouble() ?? 0;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  onTap: () => _showAdvanceDetailsSheet(adv, sym),
-                  title: Text(
-                    '${adv['employee_name'] ?? adv['employee'] ?? ''} • $sym${amount.toStringAsFixed(0)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    '${adv['purpose'] ?? ''}\nProject: ${adv['project'] ?? 'General'} • Claimed: $sym${claimed.toStringAsFixed(0)}',
-                  ),
-                  isThreeLine: true,
-                  trailing: Chip(
-                    label: Text(
-                      (adv['status'] ?? 'Draft').toString(),
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

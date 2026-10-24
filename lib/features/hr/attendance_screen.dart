@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/erp_doc_sheet.dart';
+import '../../core/widgets/erp_search_bar.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key, this.initialTab = 0});
@@ -58,6 +59,15 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   int _sheetYear = DateTime.now().year;
   int _sheetMonth = DateTime.now().month;
   String _sheetEmployeeFilter = 'All Employees';
+  String _sheetSearchQuery = '';
+  String _sheetStatusFilter = 'All';
+
+  // Search state across Attendance tabs
+  String _checkinQuery = '';
+  String _checkinTypeFilter = 'All';
+  String _toolEmployeeQuery = '';
+  String _shiftQuery = '';
+  String _shiftStatusFilter = 'All';
 
   static const List<String> _attendanceStatuses = <String>[
     'Present',
@@ -882,229 +892,277 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     final double? dist = _distanceFromOfficeMeters;
     final bool inside = _isInsideGeofence;
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        await _acquireLocation();
-        await _loadAttendanceAndShifts();
-      },
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          // Geo-fence & GPS Banner Card
-          Card(
-            elevation: 0,
-            color: inside
-                ? colors.primaryContainer.withValues(alpha: 0.45)
-                : colors.errorContainer.withValues(alpha: 0.6),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Icon(
-                        inside
-                            ? Icons.verified_user_rounded
-                            : Icons.warning_amber_rounded,
-                        color: inside ? colors.primary : colors.error,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _enforceGeofence
-                              ? (inside
-                                    ? 'Inside Office Geo-Fence'
-                                    : 'Outside Office Geo-Fence')
-                              : 'GPS Location Ready (Flexible Field Mode)',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                      if (_loadingLocation)
-                        const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (_locationError != null)
-                    Text(
-                      _locationError!,
-                      style: TextStyle(color: colors.error, fontSize: 13),
-                    )
-                  else if (_currentPosition != null)
-                    Text(
-                      'Lat: ${_currentPosition!.latitude.toStringAsFixed(5)}  •  Lng: ${_currentPosition!.longitude.toStringAsFixed(5)}'
-                      '${dist != null ? '\nDistance from Office Pin: ${dist.toStringAsFixed(0)}m (Max ${_geofenceRadiusMeters.toStringAsFixed(0)}m)' : ''}',
-                      style: const TextStyle(fontSize: 13),
-                    )
-                  else
-                    const Text('Fetching high-accuracy GPS coordinates...'),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
+    final List<Map<String, dynamic>> filteredCheckins = _recentCheckins.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(
+            row,
+            _checkinTypeFilter,
+            field: 'log_type',
+          ) &&
+          ErpSearchBar.matchesQuery(row, _checkinQuery);
+    }).toList();
 
-          // Selfie Attendance Card
-          Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Padding(
+    return Column(
+      children: <Widget>[
+        ErpSearchBar(
+          hintText:
+              'Search Check-In / Out Logs (employee, time, device, IN/OUT)...',
+          query: _checkinQuery,
+          onQueryChanged: (String v) => setState(() => _checkinQuery = v),
+          filters: const <String>['All', 'IN', 'OUT'],
+          selectedFilter: _checkinTypeFilter,
+          onFilterChanged: (String f) => setState(() => _checkinTypeFilter = f),
+          resultCount: filteredCheckins.length,
+          totalCount: _recentCheckins.length,
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              await _acquireLocation();
+              await _loadAttendanceAndShifts();
+            },
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                children: <Widget>[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      const Text(
-                        'Selfie Verification',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: _captureSelfie,
-                        icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                        label: Text(
-                          _selfieFile == null ? 'Take Selfie' : 'Retake Selfie',
-                        ),
-                      ),
-                    ],
+              children: <Widget>[
+                // Geo-fence & GPS Banner Card
+                Card(
+                  elevation: 0,
+                  color: inside
+                      ? colors.primaryContainer.withValues(alpha: 0.45)
+                      : colors.errorContainer.withValues(alpha: 0.6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  if (_selfieFile != null) ...<Widget>[
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.file(
-                        File(_selfieFile!.path),
-                        height: 190,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ] else
-                    Container(
-                      height: 110,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: colors.surfaceContainerHighest.withValues(
-                          alpha: 0.45,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(14),
-                        onTap: _captureSelfie,
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
                           children: <Widget>[
-                            Icon(Icons.face_retouching_natural, size: 36),
-                            SizedBox(height: 6),
-                            Text(
-                              'Tap to capture live selfie for attendance',
-                              style: TextStyle(fontSize: 13),
+                            Icon(
+                              inside
+                                  ? Icons.verified_user_rounded
+                                  : Icons.warning_amber_rounded,
+                              color: inside ? colors.primary : colors.error,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _enforceGeofence
+                                    ? (inside
+                                          ? 'Inside Office Geo-Fence'
+                                          : 'Outside Office Geo-Fence')
+                                    : 'GPS Location Ready (Flexible Field Mode)',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                            if (_loadingLocation)
+                              const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (_locationError != null)
+                          Text(
+                            _locationError!,
+                            style: TextStyle(color: colors.error, fontSize: 13),
+                          )
+                        else if (_currentPosition != null)
+                          Text(
+                            'Lat: ${_currentPosition!.latitude.toStringAsFixed(5)}  •  Lng: ${_currentPosition!.longitude.toStringAsFixed(5)}'
+                            '${dist != null ? '\nDistance from Office Pin: ${dist.toStringAsFixed(0)}m (Max ${_geofenceRadiusMeters.toStringAsFixed(0)}m)' : ''}',
+                            style: const TextStyle(fontSize: 13),
+                          )
+                        else
+                          const Text(
+                            'Fetching high-accuracy GPS coordinates...',
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Selfie Attendance Card
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: <Widget>[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: <Widget>[
+                            const Text(
+                              'Selfie Verification',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: _captureSelfie,
+                              icon: const Icon(
+                                Icons.camera_alt_rounded,
+                                size: 18,
+                              ),
+                              label: Text(
+                                _selfieFile == null
+                                    ? 'Take Selfie'
+                                    : 'Retake Selfie',
+                              ),
                             ),
                           ],
                         ),
-                      ),
+                        if (_selfieFile != null) ...<Widget>[
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(14),
+                            child: Image.file(
+                              File(_selfieFile!.path),
+                              height: 190,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ] else
+                          Container(
+                            height: 110,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: colors.surfaceContainerHighest.withValues(
+                                alpha: 0.45,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: _captureSelfie,
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  Icon(Icons.face_retouching_natural, size: 36),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    'Tap to capture live selfie for attendance',
+                                    style: TextStyle(fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.green.shade700,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                ),
+                                onPressed: _submittingCheckin
+                                    ? null
+                                    : () => _submitCheckInOrOut('IN'),
+                                icon: const Icon(Icons.login_rounded),
+                                label: const Text('CHECK IN'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.deepOrange.shade700,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                ),
+                                onPressed: _submittingCheckin
+                                    ? null
+                                    : () => _submitCheckInOrOut('OUT'),
+                                icon: const Icon(Icons.logout_rounded),
+                                label: const Text('CHECK OUT'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.green.shade700,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          onPressed: _submittingCheckin
-                              ? null
-                              : () => _submitCheckInOrOut('IN'),
-                          icon: const Icon(Icons.login_rounded),
-                          label: const Text('CHECK IN'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.deepOrange.shade700,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          onPressed: _submittingCheckin
-                              ? null
-                              : () => _submitCheckInOrOut('OUT'),
-                          icon: const Icon(Icons.logout_rounded),
-                          label: const Text('CHECK OUT'),
-                        ),
-                      ),
-                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Recent Check-In / Out Logs (${filteredCheckins.length})',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (filteredCheckins.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('No matching Employee Checkin logs found.'),
+                    ),
+                  )
+                else
+                  ...filteredCheckins.map((Map<String, dynamic> c) {
+                    final String docName = (c['name'] ?? '').toString();
+                    final String logType = (c['log_type'] ?? 'IN').toString();
+                    final bool isIn = logType == 'IN';
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        onTap: docName.isEmpty
+                            ? null
+                            : () => ErpDocSheet.showViewAndEdit(
+                                context,
+                                doctype: 'Employee Checkin',
+                                docname: docName,
+                                onSaved: _loadAttendanceAndShifts,
+                              ),
+                        leading: CircleAvatar(
+                          backgroundColor: isIn
+                              ? Colors.green.withValues(alpha: 0.15)
+                              : Colors.orange.withValues(alpha: 0.15),
+                          child: Icon(
+                            isIn ? Icons.login_rounded : Icons.logout_rounded,
+                            color: isIn
+                                ? Colors.green.shade700
+                                : Colors.deepOrange,
+                          ),
+                        ),
+                        title: Text(
+                          '${c['employee_name'] ?? c['employee'] ?? 'Employee'} • $logType',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          '${c['time'] ?? ''}\n${c['device_id'] ?? ''}',
+                        ),
+                        isThreeLine: true,
+                        trailing: const Icon(Icons.edit_note_rounded, size: 20),
+                      ),
+                    );
+                  }),
+              ],
             ),
           ),
-          const SizedBox(height: 18),
-          const Text(
-            'Recent Check-In / Out Logs',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          if (_recentCheckins.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No recent Employee Checkin logs found.'),
-              ),
-            )
-          else
-            ..._recentCheckins.map((Map<String, dynamic> c) {
-              final String docName = (c['name'] ?? '').toString();
-              final String logType = (c['log_type'] ?? 'IN').toString();
-              final bool isIn = logType == 'IN';
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  onTap: docName.isEmpty
-                      ? null
-                      : () => ErpDocSheet.showViewAndEdit(
-                          context,
-                          doctype: 'Employee Checkin',
-                          docname: docName,
-                          onSaved: _loadAttendanceAndShifts,
-                        ),
-                  leading: CircleAvatar(
-                    backgroundColor: isIn
-                        ? Colors.green.withValues(alpha: 0.15)
-                        : Colors.orange.withValues(alpha: 0.15),
-                    child: Icon(
-                      isIn ? Icons.login_rounded : Icons.logout_rounded,
-                      color: isIn ? Colors.green.shade700 : Colors.deepOrange,
-                    ),
-                  ),
-                  title: Text(
-                    '${c['employee_name'] ?? c['employee'] ?? 'Employee'} • $logType',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text('${c['time'] ?? ''}\n${c['device_id'] ?? ''}'),
-                  isThreeLine: true,
-                  trailing: const Icon(Icons.edit_note_rounded, size: 20),
-                ),
-              );
-            }),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1130,14 +1188,15 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       _toolDepartment = 'All Departments';
     }
 
-    // Filter employees by department
+    // Filter employees by department & search query
     final List<Map<String, dynamic>> deptEmployees = allEmps.where((
       Map<String, dynamic> e,
     ) {
-      if (_toolDepartment == 'All Departments') {
-        return true;
+      if (_toolDepartment != 'All Departments' &&
+          (e['department'] ?? '').toString() != _toolDepartment) {
+        return false;
       }
-      return (e['department'] ?? '').toString() == _toolDepartment;
+      return ErpSearchBar.matchesQuery(e, _toolEmployeeQuery);
     }).toList();
 
     // Find attendance records already marked for selectedDateStr
@@ -1172,419 +1231,455 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       }
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadAttendanceAndShifts,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          // Attendance Tool Control Header Card
-          Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Padding(
+    return Column(
+      children: <Widget>[
+        ErpSearchBar(
+          hintText:
+              'Search Employees in Attendance Tool (name, ID, department)...',
+          query: _toolEmployeeQuery,
+          onQueryChanged: (String v) => setState(() => _toolEmployeeQuery = v),
+          resultCount: deptEmployees.length,
+          totalCount: allEmps.length,
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadAttendanceAndShifts,
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Icon(Icons.fact_check_rounded, color: colors.primary),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Employee Attendance Tool',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+              children: <Widget>[
+                // Attendance Tool Control Header Card
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Icon(
+                              Icons.fact_check_rounded,
+                              color: colors.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Employee Attendance Tool',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.calendar_today, size: 16),
+                              label: Text(selectedDateStr),
+                              onPressed: () async {
+                                final DateTime? picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: _toolDate,
+                                  firstDate: DateTime(2023),
+                                  lastDate: DateTime(2030),
+                                );
+                                if (picked != null) {
+                                  setState(() {
+                                    _toolDate = picked;
+                                    _selectedUnmarkedEmployees.clear();
+                                  });
+                                }
+                              },
+                            ),
+                          ],
                         ),
-                      ),
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.calendar_today, size: 16),
-                        label: Text(selectedDateStr),
-                        onPressed: () async {
-                          final DateTime? picked = await showDatePicker(
-                            context: context,
-                            initialDate: _toolDate,
-                            firstDate: DateTime(2023),
-                            lastDate: DateTime(2030),
-                          );
-                          if (picked != null) {
-                            setState(() {
-                              _toolDate = picked;
-                              _selectedUnmarkedEmployees.clear();
-                            });
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _toolDepartment,
-                    decoration: const InputDecoration(
-                      labelText: 'Department / Branch Filter',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: deptOptions
-                        .map(
-                          (String d) => DropdownMenuItem<String>(
-                            value: d,
-                            child: Text(d),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (String? v) {
-                      if (v != null) {
-                        setState(() {
-                          _toolDepartment = v;
-                          _selectedUnmarkedEmployees.clear();
-                        });
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _toolStatus,
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: _toolDepartment,
                           decoration: const InputDecoration(
-                            labelText: 'Mark Status As',
+                            labelText: 'Department / Branch Filter',
                             border: OutlineInputBorder(),
                             isDense: true,
                           ),
-                          items: _attendanceStatuses
+                          items: deptOptions
                               .map(
-                                (String s) => DropdownMenuItem<String>(
-                                  value: s,
-                                  child: Text(s),
+                                (String d) => DropdownMenuItem<String>(
+                                  value: d,
+                                  child: Text(d),
                                 ),
                               )
                               .toList(),
                           onChanged: (String? v) {
                             if (v != null) {
-                              setState(() => _toolStatus = v);
+                              setState(() {
+                                _toolDepartment = v;
+                                _selectedUnmarkedEmployees.clear();
+                              });
                             }
                           },
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _toolShift,
-                          decoration: const InputDecoration(
-                            labelText: 'Shift (Optional)',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          items: <DropdownMenuItem<String>>[
-                            const DropdownMenuItem<String>(
-                              value: '',
-                              child: Text('Default Shift'),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _toolStatus,
+                                decoration: const InputDecoration(
+                                  labelText: 'Mark Status As',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                                items: _attendanceStatuses
+                                    .map(
+                                      (String s) => DropdownMenuItem<String>(
+                                        value: s,
+                                        child: Text(s),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (String? v) {
+                                  if (v != null) {
+                                    setState(() => _toolStatus = v);
+                                  }
+                                },
+                              ),
                             ),
-                            ..._shiftTypes.map(
-                              (String s) => DropdownMenuItem<String>(
-                                value: s,
-                                child: Text(s),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _toolShift,
+                                decoration: const InputDecoration(
+                                  labelText: 'Shift (Optional)',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                                items: <DropdownMenuItem<String>>[
+                                  const DropdownMenuItem<String>(
+                                    value: '',
+                                    child: Text('Default Shift'),
+                                  ),
+                                  ..._shiftTypes.map(
+                                    (String s) => DropdownMenuItem<String>(
+                                      value: s,
+                                      child: Text(s),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (String? v) {
+                                  setState(() => _toolShift = v ?? '');
+                                },
                               ),
                             ),
                           ],
-                          onChanged: (String? v) {
-                            setState(() => _toolShift = v ?? '');
-                          },
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          title: const Text('Late Entry'),
-                          value: _toolLateEntry,
-                          onChanged: (bool? v) =>
-                              setState(() => _toolLateEntry = v ?? false),
-                        ),
-                      ),
-                      Expanded(
-                        child: CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          title: const Text('Early Exit'),
-                          value: _toolEarlyExit,
-                          onChanged: (bool? v) =>
-                              setState(() => _toolEarlyExit = v ?? false),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  FilledButton.icon(
-                    onPressed:
-                        _markingBulkAttendance ||
-                            _selectedUnmarkedEmployees.isEmpty
-                        ? null
-                        : () {
-                            final List<Map<String, dynamic>> chosen =
-                                unmarkedEmployees
-                                    .where(
-                                      (Map<String, dynamic> e) =>
-                                          _selectedUnmarkedEmployees.contains(
-                                            (e['name'] ?? '').toString(),
-                                          ),
-                                    )
-                                    .toList();
-                            _markAttendanceForEmployees(chosen, _toolStatus);
-                          },
-                    icon: _markingBulkAttendance
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                        const SizedBox(height: 6),
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: CheckboxListTile(
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                                title: const Text('Late Entry'),
+                                value: _toolLateEntry,
+                                onChanged: (bool? v) =>
+                                    setState(() => _toolLateEntry = v ?? false),
+                              ),
                             ),
-                          )
-                        : const Icon(Icons.done_all_rounded),
-                    label: Text(
-                      _markingBulkAttendance
-                          ? 'Marking Attendance...'
-                          : 'Mark ${_selectedUnmarkedEmployees.length} Selected as $_toolStatus',
+                            Expanded(
+                              child: CheckboxListTile(
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                                title: const Text('Early Exit'),
+                                value: _toolEarlyExit,
+                                onChanged: (bool? v) =>
+                                    setState(() => _toolEarlyExit = v ?? false),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        FilledButton.icon(
+                          onPressed:
+                              _markingBulkAttendance ||
+                                  _selectedUnmarkedEmployees.isEmpty
+                              ? null
+                              : () {
+                                  final List<Map<String, dynamic>>
+                                  chosen = unmarkedEmployees
+                                      .where(
+                                        (Map<String, dynamic> e) =>
+                                            _selectedUnmarkedEmployees.contains(
+                                              (e['name'] ?? '').toString(),
+                                            ),
+                                      )
+                                      .toList();
+                                  _markAttendanceForEmployees(
+                                    chosen,
+                                    _toolStatus,
+                                  );
+                                },
+                          icon: _markingBulkAttendance
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.done_all_rounded),
+                          label: Text(
+                            _markingBulkAttendance
+                                ? 'Marking Attendance...'
+                                : 'Mark ${_selectedUnmarkedEmployees.length} Selected as $_toolStatus',
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
+                ),
+                const SizedBox(height: 16),
 
-          // Unmarked Employees Section
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Text(
-                'Unmarked Employees (${unmarkedEmployees.length})',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (unmarkedEmployees.isNotEmpty)
-                TextButton.icon(
-                  icon: Icon(
-                    _selectedUnmarkedEmployees.length ==
-                            unmarkedEmployees.length
-                        ? Icons.deselect_rounded
-                        : Icons.select_all_rounded,
-                    size: 18,
-                  ),
-                  label: Text(
-                    _selectedUnmarkedEmployees.length ==
-                            unmarkedEmployees.length
-                        ? 'Deselect All'
-                        : 'Select All',
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      if (_selectedUnmarkedEmployees.length ==
-                          unmarkedEmployees.length) {
-                        _selectedUnmarkedEmployees.clear();
-                      } else {
-                        _selectedUnmarkedEmployees.addAll(
-                          unmarkedEmployees.map(
-                            (Map<String, dynamic> e) =>
-                                (e['name'] ?? '').toString(),
-                          ),
-                        );
-                      }
-                    });
-                  },
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          if (unmarkedEmployees.isEmpty)
-            Card(
-              color: Colors.green.withValues(alpha: 0.08),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
+                // Unmarked Employees Section
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
-                    const Icon(Icons.check_circle_rounded, color: Colors.green),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'All employees in $_toolDepartment are marked for $selectedDateStr!',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                    Text(
+                      'Unmarked Employees (${unmarkedEmployees.length})',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ],
-                ),
-              ),
-            )
-          else
-            ...unmarkedEmployees.map((Map<String, dynamic> emp) {
-              final String empId = (emp['name'] ?? '').toString();
-              final bool isSelected = _selectedUnmarkedEmployees.contains(
-                empId,
-              );
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-                  child: Column(
-                    children: <Widget>[
-                      CheckboxListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 4,
+                    if (unmarkedEmployees.isNotEmpty)
+                      TextButton.icon(
+                        icon: Icon(
+                          _selectedUnmarkedEmployees.length ==
+                                  unmarkedEmployees.length
+                              ? Icons.deselect_rounded
+                              : Icons.select_all_rounded,
+                          size: 18,
                         ),
-                        value: isSelected,
-                        onChanged: (bool? checked) {
+                        label: Text(
+                          _selectedUnmarkedEmployees.length ==
+                                  unmarkedEmployees.length
+                              ? 'Deselect All'
+                              : 'Select All',
+                        ),
+                        onPressed: () {
                           setState(() {
-                            if (checked == true) {
-                              _selectedUnmarkedEmployees.add(empId);
+                            if (_selectedUnmarkedEmployees.length ==
+                                unmarkedEmployees.length) {
+                              _selectedUnmarkedEmployees.clear();
                             } else {
-                              _selectedUnmarkedEmployees.remove(empId);
+                              _selectedUnmarkedEmployees.addAll(
+                                unmarkedEmployees.map(
+                                  (Map<String, dynamic> e) =>
+                                      (e['name'] ?? '').toString(),
+                                ),
+                              );
                             }
                           });
                         },
-                        title: Text(
-                          '${emp['employee_name'] ?? empId}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          '$empId • ${emp['department'] ?? 'No Dept'}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 12,
-                          right: 8,
-                          bottom: 4,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: <Widget>[
-                            const Text(
-                              'Quick 1-Tap:',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey,
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (unmarkedEmployees.isEmpty)
+                  Card(
+                    color: Colors.green.withValues(alpha: 0.08),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: <Widget>[
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: Colors.green,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'All employees in $_toolDepartment are marked for $selectedDateStr!',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            _buildQuickMarkChip(
-                              emp,
-                              'Present',
-                              'P',
-                              Colors.green,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  ...unmarkedEmployees.map((Map<String, dynamic> emp) {
+                    final String empId = (emp['name'] ?? '').toString();
+                    final bool isSelected = _selectedUnmarkedEmployees.contains(
+                      empId,
+                    );
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        child: Column(
+                          children: <Widget>[
+                            CheckboxListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              value: isSelected,
+                              onChanged: (bool? checked) {
+                                setState(() {
+                                  if (checked == true) {
+                                    _selectedUnmarkedEmployees.add(empId);
+                                  } else {
+                                    _selectedUnmarkedEmployees.remove(empId);
+                                  }
+                                });
+                              },
+                              title: Text(
+                                '${emp['employee_name'] ?? empId}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '$empId • ${emp['department'] ?? 'No Dept'}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
                             ),
-                            const SizedBox(width: 6),
-                            _buildQuickMarkChip(emp, 'Absent', 'A', Colors.red),
-                            const SizedBox(width: 6),
-                            _buildQuickMarkChip(
-                              emp,
-                              'On Leave',
-                              'L',
-                              Colors.blue,
-                            ),
-                            const SizedBox(width: 6),
-                            _buildQuickMarkChip(
-                              emp,
-                              'Half Day',
-                              'HD',
-                              Colors.orange,
-                            ),
-                            const SizedBox(width: 6),
-                            _buildQuickMarkChip(
-                              emp,
-                              'Work From Home',
-                              'WFH',
-                              Colors.teal,
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: 12,
+                                right: 8,
+                                bottom: 4,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: <Widget>[
+                                  const Text(
+                                    'Quick 1-Tap:',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _buildQuickMarkChip(
+                                    emp,
+                                    'Present',
+                                    'P',
+                                    Colors.green,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _buildQuickMarkChip(
+                                    emp,
+                                    'Absent',
+                                    'A',
+                                    Colors.red,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _buildQuickMarkChip(
+                                    emp,
+                                    'On Leave',
+                                    'L',
+                                    Colors.blue,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _buildQuickMarkChip(
+                                    emp,
+                                    'Half Day',
+                                    'HD',
+                                    Colors.orange,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _buildQuickMarkChip(
+                                    emp,
+                                    'Work From Home',
+                                    'WFH',
+                                    Colors.teal,
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              );
-            }),
+                    );
+                  }),
 
-          const SizedBox(height: 18),
-          Text(
-            'Marked on $selectedDateStr (${markedEmployees.length})',
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          if (markedEmployees.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No attendance marked yet for this date.'),
-              ),
-            )
-          else
-            ...markedEmployees.map((Map<String, dynamic> item) {
-              final Map<String, dynamic> att =
-                  item['att'] as Map<String, dynamic>;
-              final String attDocName = (att['name'] ?? '').toString();
-              final String status = (att['status'] ?? 'Present').toString();
-              final Color badgeColor = _statusColor(status);
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  onTap: attDocName.isEmpty
-                      ? null
-                      : () => ErpDocSheet.showViewAndEdit(
-                          context,
-                          doctype: 'Attendance',
-                          docname: attDocName,
-                          onSaved: _loadAttendanceAndShifts,
-                        ),
-                  leading: CircleAvatar(
-                    backgroundColor: badgeColor.withValues(alpha: 0.15),
-                    child: Text(
-                      _statusShortCode(status),
-                      style: TextStyle(
-                        color: badgeColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    '${item['employee_name'] ?? att['employee_name'] ?? ''}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    '${item['name']} • ${item['department'] ?? att['department'] ?? ''}',
-                  ),
-                  trailing: Chip(
-                    label: Text(
-                      status,
-                      style: TextStyle(
-                        color: badgeColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
+                const SizedBox(height: 18),
+                Text(
+                  'Marked on $selectedDateStr (${markedEmployees.length})',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              );
-            }),
-        ],
-      ),
+                const SizedBox(height: 8),
+                if (markedEmployees.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('No attendance marked yet for this date.'),
+                    ),
+                  )
+                else
+                  ...markedEmployees.map((Map<String, dynamic> item) {
+                    final Map<String, dynamic> att =
+                        item['att'] as Map<String, dynamic>;
+                    final String attDocName = (att['name'] ?? '').toString();
+                    final String status = (att['status'] ?? 'Present')
+                        .toString();
+                    final Color badgeColor = _statusColor(status);
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        onTap: attDocName.isEmpty
+                            ? null
+                            : () => ErpDocSheet.showViewAndEdit(
+                                context,
+                                doctype: 'Attendance',
+                                docname: attDocName,
+                                onSaved: _loadAttendanceAndShifts,
+                              ),
+                        leading: CircleAvatar(
+                          backgroundColor: badgeColor.withValues(alpha: 0.15),
+                          child: Text(
+                            _statusShortCode(status),
+                            style: TextStyle(
+                              color: badgeColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          '${item['employee_name'] ?? att['employee_name'] ?? ''}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          '${item['name']} • ${item['department'] ?? att['department'] ?? ''}',
+                        ),
+                        trailing: Chip(
+                          label: Text(
+                            status,
+                            style: TextStyle(
+                              color: badgeColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1647,7 +1742,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         ? null
         : _sheetEmployeeFilter.split(' - ').first;
 
-    // Filter attendance list for selected month & employee
+    // Filter attendance list for selected month, employee, status & search query
     final List<Map<String, dynamic>> monthRecords = _attendanceList.where((
       Map<String, dynamic> a,
     ) {
@@ -1658,10 +1753,13 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       if (selectedEmpId != null && selectedEmpId.isNotEmpty) {
         final String recEmp = (a['employee'] ?? '').toString();
         final String recName = (a['employee_name'] ?? '').toString();
-        return recEmp == selectedEmpId ||
-            _sheetEmployeeFilter.contains(recName);
+        if (recEmp != selectedEmpId &&
+            !_sheetEmployeeFilter.contains(recName)) {
+          return false;
+        }
       }
-      return true;
+      return ErpSearchBar.matchesFilter(a, _sheetStatusFilter) &&
+          ErpSearchBar.matchesQuery(a, _sheetSearchQuery);
     }).toList();
 
     final int presentCount = monthRecords
@@ -1681,320 +1779,379 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         .length;
 
     // Group monthly records by Employee for the Monthly Attendance Matrix
-    final List<Map<String, dynamic>> matrixEmployees = selectedEmpId == null
-        ? allEmps
-        : allEmps
-              .where((Map<String, dynamic> e) => e['name'] == selectedEmpId)
-              .toList();
+    final List<Map<String, dynamic>> matrixEmployees =
+        (selectedEmpId == null
+                ? allEmps
+                : allEmps
+                      .where(
+                        (Map<String, dynamic> e) => e['name'] == selectedEmpId,
+                      )
+                      .toList())
+            .where(
+              (Map<String, dynamic> e) =>
+                  ErpSearchBar.matchesQuery(e, _sheetSearchQuery),
+            )
+            .toList();
 
-    return RefreshIndicator(
-      onRefresh: _loadAttendanceAndShifts,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          // Month, Year & Employee Selector Card
-          Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  const Text(
-                    'Monthly Attendance Sheet Filter',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+    return Column(
+      children: <Widget>[
+        ErpSearchBar(
+          hintText:
+              'Search Monthly Attendance (employee, date, shift, status)...',
+          query: _sheetSearchQuery,
+          onQueryChanged: (String v) => setState(() => _sheetSearchQuery = v),
+          filters: const <String>[
+            'All',
+            'Present',
+            'Absent',
+            'On Leave',
+            'Half Day',
+            'Work From Home',
+          ],
+          selectedFilter: _sheetStatusFilter,
+          onFilterChanged: (String f) => setState(() => _sheetStatusFilter = f),
+          resultCount: monthRecords.length,
+          totalCount: _attendanceList.length,
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadAttendanceAndShifts,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: <Widget>[
+                // Month, Year & Employee Selector Card
+                Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: DropdownButtonFormField<int>(
-                          initialValue: _sheetMonth,
-                          decoration: const InputDecoration(
-                            labelText: 'Month',
-                            border: OutlineInputBorder(),
-                            isDense: true,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        const Text(
+                          'Monthly Attendance Sheet Filter',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
                           ),
-                          items: List<DropdownMenuItem<int>>.generate(12, (
-                            int i,
-                          ) {
-                            final int m = i + 1;
-                            final String mName = DateFormat('MMMM')
-                                .format(DateTime(2026, m));
-                            return DropdownMenuItem<int>(
-                              value: m,
-                              child: Text(mName),
-                            );
-                          }),
-                          onChanged: (int? v) {
-                            if (v != null) {
-                              setState(() => _sheetMonth = v);
-                            }
-                          },
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: DropdownButtonFormField<int>(
-                          initialValue: _sheetYear,
+                        const SizedBox(height: 10),
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: DropdownButtonFormField<int>(
+                                initialValue: _sheetMonth,
+                                decoration: const InputDecoration(
+                                  labelText: 'Month',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                                items: List<DropdownMenuItem<int>>.generate(
+                                  12,
+                                  (int i) {
+                                    final int m = i + 1;
+                                    final String mName = DateFormat('MMMM')
+                                        .format(DateTime(2026, m));
+                                    return DropdownMenuItem<int>(
+                                      value: m,
+                                      child: Text(mName),
+                                    );
+                                  },
+                                ),
+                                onChanged: (int? v) {
+                                  if (v != null) {
+                                    setState(() => _sheetMonth = v);
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DropdownButtonFormField<int>(
+                                initialValue: _sheetYear,
+                                decoration: const InputDecoration(
+                                  labelText: 'Year',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                                items: <int>[2024, 2025, 2026, 2027]
+                                    .map(
+                                      (int y) => DropdownMenuItem<int>(
+                                        value: y,
+                                        child: Text(y.toString()),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (int? v) {
+                                  if (v != null) {
+                                    setState(() => _sheetYear = v);
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<String>(
+                          initialValue: _sheetEmployeeFilter,
                           decoration: const InputDecoration(
-                            labelText: 'Year',
+                            labelText: 'Employee',
                             border: OutlineInputBorder(),
                             isDense: true,
                           ),
-                          items: <int>[2024, 2025, 2026, 2027]
+                          items: empFilterOptions
                               .map(
-                                (int y) => DropdownMenuItem<int>(
-                                  value: y,
-                                  child: Text(y.toString()),
+                                (String s) => DropdownMenuItem<String>(
+                                  value: s,
+                                  child: Text(
+                                    s,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               )
                               .toList(),
-                          onChanged: (int? v) {
+                          onChanged: (String? v) {
                             if (v != null) {
-                              setState(() => _sheetYear = v);
+                              setState(() => _sheetEmployeeFilter = v);
                             }
                           },
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    initialValue: _sheetEmployeeFilter,
-                    decoration: const InputDecoration(
-                      labelText: 'Employee',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: empFilterOptions
-                        .map(
-                          (String s) => DropdownMenuItem<String>(
-                            value: s,
-                            child: Text(s, overflow: TextOverflow.ellipsis),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (String? v) {
-                      if (v != null) {
-                        setState(() => _sheetEmployeeFilter = v);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Summary KPI Badges
-          Row(
-            children: <Widget>[
-              _buildStatBadge('Present', presentCount.toString(), Colors.green),
-              const SizedBox(width: 8),
-              _buildStatBadge('On Leave', leaveCount.toString(), Colors.blue),
-              const SizedBox(width: 8),
-              _buildStatBadge('Absent', absentCount.toString(), Colors.red),
-              const SizedBox(width: 8),
-              _buildStatBadge(
-                'HD / WFH',
-                halfDayCount.toString(),
-                Colors.orange,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Employee Day-by-Day Attendance Matrix Cards
-          const Text(
-            'Employee Monthly Attendance Matrix (Days 1–31)',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          ...matrixEmployees.map((Map<String, dynamic> emp) {
-            final String empId = (emp['name'] ?? '').toString();
-            final String empName = (emp['employee_name'] ?? empId).toString();
-
-            final Map<int, String> statusByDay = <int, String>{};
-            int empP = 0;
-            int empA = 0;
-            int empL = 0;
-            int empHD = 0;
-
-            for (final Map<String, dynamic> att in monthRecords) {
-              final String recEmp = (att['employee'] ?? '').toString();
-              final String recName = (att['employee_name'] ?? '').toString();
-              if (recEmp == empId || recName == empName) {
-                final String dateStr = (att['attendance_date'] ?? '')
-                    .toString();
-                final List<String> parts = dateStr.split('-');
-                if (parts.length == 3) {
-                  final int? day = int.tryParse(parts[2]);
-                  final String st = (att['status'] ?? 'Present').toString();
-                  if (day != null) {
-                    statusByDay[day] = st;
-                  }
-                  if (st == 'Present') {
-                    empP++;
-                  } else if (st == 'Absent') {
-                    empA++;
-                  } else if (st == 'On Leave') {
-                    empL++;
-                  } else {
-                    empHD++;
-                  }
-                }
-              }
-            }
-
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            '$empName ($empId)',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          'P:$empP  L:$empL  A:$empA  HD:$empHD',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: List<Widget>.generate(daysInMonth, (int idx) {
-                        final int dayNum = idx + 1;
-                        final String? st = statusByDay[dayNum];
-                        final Color c = st != null
-                            ? _statusColor(st)
-                            : Colors.grey;
-                        final String code = st != null
-                            ? _statusShortCode(st)
-                            : '-';
-                        return Container(
-                          width: 34,
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          decoration: BoxDecoration(
-                            color: st != null
-                                ? c.withValues(alpha: 0.15)
-                                : Colors.grey.withValues(alpha: 0.07),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: st != null
-                                  ? c.withValues(alpha: 0.45)
-                                  : Colors.grey.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Column(
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Summary KPI Badges
+                Row(
+                  children: <Widget>[
+                    _buildStatBadge(
+                      'Present',
+                      presentCount.toString(),
+                      Colors.green,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildStatBadge(
+                      'On Leave',
+                      leaveCount.toString(),
+                      Colors.blue,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildStatBadge(
+                      'Absent',
+                      absentCount.toString(),
+                      Colors.red,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildStatBadge(
+                      'HD / WFH',
+                      halfDayCount.toString(),
+                      Colors.orange,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Employee Day-by-Day Attendance Matrix Cards
+                const Text(
+                  'Employee Monthly Attendance Matrix (Days 1–31)',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                ...matrixEmployees.map((Map<String, dynamic> emp) {
+                  final String empId = (emp['name'] ?? '').toString();
+                  final String empName = (emp['employee_name'] ?? empId)
+                      .toString();
+
+                  final Map<int, String> statusByDay = <int, String>{};
+                  int empP = 0;
+                  int empA = 0;
+                  int empL = 0;
+                  int empHD = 0;
+
+                  for (final Map<String, dynamic> att in monthRecords) {
+                    final String recEmp = (att['employee'] ?? '').toString();
+                    final String recName = (att['employee_name'] ?? '')
+                        .toString();
+                    if (recEmp == empId || recName == empName) {
+                      final String dateStr = (att['attendance_date'] ?? '')
+                          .toString();
+                      final List<String> parts = dateStr.split('-');
+                      if (parts.length == 3) {
+                        final int? day = int.tryParse(parts[2]);
+                        final String st = (att['status'] ?? 'Present')
+                            .toString();
+                        if (day != null) {
+                          statusByDay[day] = st;
+                        }
+                        if (st == 'Present') {
+                          empP++;
+                        } else if (st == 'Absent') {
+                          empA++;
+                        } else if (st == 'On Leave') {
+                          empL++;
+                        } else {
+                          empHD++;
+                        }
+                      }
+                    }
+                  }
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: <Widget>[
-                              Text(
-                                dayNum.toString().padLeft(2, '0'),
-                                style: const TextStyle(
-                                  fontSize: 9,
-                                  color: Colors.grey,
+                              Expanded(
+                                child: Text(
+                                  '$empName ($empId)',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ),
                               Text(
-                                code,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: st != null ? c : Colors.grey,
+                                'P:$empP  L:$empL  A:$empA  HD:$empHD',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ],
                           ),
-                        );
-                      }),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-
-          const SizedBox(height: 8),
-          const Text(
-            'Daily Attendance Logs',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          if (monthRecords.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'No attendance logs found for the selected month. Use the "Attendance Tool" tab to mark daily attendance.',
-                ),
-              ),
-            )
-          else
-            ...monthRecords.map((Map<String, dynamic> row) {
-              final String docName = (row['name'] ?? '').toString();
-              final String status = (row['status'] ?? 'Present').toString();
-              final Color badgeColor = _statusColor(status);
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  onTap: docName.isEmpty
-                      ? null
-                      : () => ErpDocSheet.showViewAndEdit(
-                          context,
-                          doctype: 'Attendance',
-                          docname: docName,
-                          onSaved: _loadAttendanceAndShifts,
-                        ),
-                  leading: CircleAvatar(
-                    backgroundColor: badgeColor.withValues(alpha: 0.15),
-                    child: Icon(
-                      Icons.event_available_rounded,
-                      color: badgeColor,
-                    ),
-                  ),
-                  title: Text(
-                    '${row['attendance_date'] ?? ''} — ${row['employee_name'] ?? row['employee'] ?? ''}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    'Doc: $docName ${row['shift'] != null ? '• Shift: ${row['shift']}' : ''}',
-                  ),
-                  trailing: Chip(
-                    label: Text(
-                      status,
-                      style: TextStyle(
-                        color: badgeColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: List<Widget>.generate(daysInMonth, (
+                              int idx,
+                            ) {
+                              final int dayNum = idx + 1;
+                              final String? st = statusByDay[dayNum];
+                              final Color c = st != null
+                                  ? _statusColor(st)
+                                  : Colors.grey;
+                              final String code = st != null
+                                  ? _statusShortCode(st)
+                                  : '-';
+                              return Container(
+                                width: 34,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: st != null
+                                      ? c.withValues(alpha: 0.15)
+                                      : Colors.grey.withValues(alpha: 0.07),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: st != null
+                                        ? c.withValues(alpha: 0.45)
+                                        : Colors.grey.withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: <Widget>[
+                                    Text(
+                                      dayNum.toString().padLeft(2, '0'),
+                                      style: const TextStyle(
+                                        fontSize: 9,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                    Text(
+                                      code,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: st != null ? c : Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
+                  );
+                }),
+
+                const SizedBox(height: 8),
+                const Text(
+                  'Daily Attendance Logs',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
-              );
-            }),
-        ],
-      ),
+                const SizedBox(height: 8),
+                if (monthRecords.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'No attendance logs found for the selected month. Use the "Attendance Tool" tab to mark daily attendance.',
+                      ),
+                    ),
+                  )
+                else
+                  ...monthRecords.map((Map<String, dynamic> row) {
+                    final String docName = (row['name'] ?? '').toString();
+                    final String status = (row['status'] ?? 'Present')
+                        .toString();
+                    final Color badgeColor = _statusColor(status);
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        onTap: docName.isEmpty
+                            ? null
+                            : () => ErpDocSheet.showViewAndEdit(
+                                context,
+                                doctype: 'Attendance',
+                                docname: docName,
+                                onSaved: _loadAttendanceAndShifts,
+                              ),
+                        leading: CircleAvatar(
+                          backgroundColor: badgeColor.withValues(alpha: 0.15),
+                          child: Icon(
+                            Icons.event_available_rounded,
+                            color: badgeColor,
+                          ),
+                        ),
+                        title: Text(
+                          '${row['attendance_date'] ?? ''} — ${row['employee_name'] ?? row['employee'] ?? ''}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          'Doc: $docName ${row['shift'] != null ? '• Shift: ${row['shift']}' : ''}',
+                        ),
+                        trailing: Chip(
+                          label: Text(
+                            status,
+                            style: TextStyle(
+                              color: badgeColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -2031,55 +2188,84 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   }
 
   Widget _buildShiftRequestsTab(ColorScheme colors) {
+    final List<Map<String, dynamic>> filteredShifts = _shiftRequests.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _shiftStatusFilter) &&
+          ErpSearchBar.matchesQuery(row, _shiftQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateShiftRequestDialog,
         icon: const Icon(Icons.add_rounded),
         label: const Text('New Shift Request'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadAttendanceAndShifts,
-        child: _shiftRequests.isEmpty
-            ? ListView(
-                padding: const EdgeInsets.all(24),
-                children: const <Widget>[
-                  Center(
-                    child: Text(
-                      'No Shift Requests found. Tap "+ New Shift Request" to apply.',
-                    ),
-                  ),
-                ],
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _shiftRequests.length,
-                itemBuilder: (BuildContext context, int idx) {
-                  final Map<String, dynamic> s = _shiftRequests[idx];
-                  final String docName = (s['name'] ?? '').toString();
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      onTap: docName.isEmpty
-                          ? null
-                          : () => ErpDocSheet.showViewAndEdit(
-                              context,
-                              doctype: 'Shift Request',
-                              docname: docName,
-                              onSaved: _loadAttendanceAndShifts,
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText: 'Search Shift Requests (employee, shift type, dates, status)...',
+            query: _shiftQuery,
+            onQueryChanged: (String v) => setState(() => _shiftQuery = v),
+            filters: const <String>['All', 'Draft', 'Approved'],
+            selectedFilter: _shiftStatusFilter,
+            onFilterChanged: (String f) =>
+                setState(() => _shiftStatusFilter = f),
+            resultCount: filteredShifts.length,
+            totalCount: _shiftRequests.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadAttendanceAndShifts,
+              child: filteredShifts.isEmpty
+                  ? ListView(
+                      padding: const EdgeInsets.all(24),
+                      children: const <Widget>[
+                        Center(
+                          child: Text(
+                            'No matching Shift Requests found. Tap "+ New Shift Request" to apply.',
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                      itemCount: filteredShifts.length,
+                      itemBuilder: (BuildContext context, int idx) {
+                        final Map<String, dynamic> s = filteredShifts[idx];
+                        final String docName = (s['name'] ?? '').toString();
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            onTap: docName.isEmpty
+                                ? null
+                                : () => ErpDocSheet.showViewAndEdit(
+                                    context,
+                                    doctype: 'Shift Request',
+                                    docname: docName,
+                                    onSaved: _loadAttendanceAndShifts,
+                                  ),
+                            leading: const Icon(Icons.schedule_send_rounded),
+                            title: Text(
+                              '${s['shift_type'] ?? 'Shift'} (${s['status'] ?? 'Draft'})',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                      leading: const Icon(Icons.schedule_send_rounded),
-                      title: Text(
-                        '${s['shift_type'] ?? 'Shift'} (${s['status'] ?? 'Draft'})',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        '${s['from_date'] ?? ''} → ${s['to_date'] ?? ''} • ${s['employee_name'] ?? ''}',
-                      ),
-                      trailing: const Icon(Icons.edit_note_rounded, size: 20),
+                            subtitle: Text(
+                              '${s['from_date'] ?? ''} → ${s['to_date'] ?? ''} • ${s['employee_name'] ?? ''}',
+                            ),
+                            trailing: const Icon(
+                              Icons.edit_note_rounded,
+                              size: 20,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
+            ),
+          ),
+        ],
       ),
     );
   }

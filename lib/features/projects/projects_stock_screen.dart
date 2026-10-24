@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/erp_doc_sheet.dart';
+import '../../core/widgets/erp_search_bar.dart';
 
 class ProjectsAndStockScreen extends StatefulWidget {
   const ProjectsAndStockScreen({super.key, this.initialTab = 0});
@@ -18,6 +19,20 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _loading = false;
+
+  // Search & quick-filter state for all 6 tabs
+  String _projectQuery = '';
+  String _projectStatusFilter = 'All';
+  String _taskQuery = '';
+  String _taskStatusFilter = 'All';
+  String _timesheetQuery = '';
+  String _timesheetStatusFilter = 'All';
+  String _mrStockQuery = '';
+  String _mrStockFilter = 'All';
+  String _deliveryNoteQuery = '';
+  String _deliveryNoteStatusFilter = 'All';
+  String _stockBalanceQuery = '';
+  String _stockBalanceFilter = 'All';
 
   List<Map<String, dynamic>> _projects = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _tasks = <Map<String, dynamic>>[];
@@ -1171,6 +1186,15 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
   }
 
   Widget _buildProjectsTab(String sym) {
+    final List<Map<String, dynamic>> filteredProjects = _projects.where((
+      Map<String, dynamic> p,
+    ) {
+      if (!ErpSearchBar.matchesFilter(p, _projectStatusFilter)) {
+        return false;
+      }
+      return ErpSearchBar.matchesQuery(p, _projectQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateProjectSheet,
@@ -1179,162 +1203,175 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
       ),
       body: RefreshIndicator(
         onRefresh: _loadData,
-        child: _projects.isEmpty
-            ? ListView(
-                padding: const EdgeInsets.all(24),
-                children: const <Widget>[
-                  Center(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+          children: <Widget>[
+            ErpSearchBar(
+              hintText:
+                  'Search Projects by Name, ID, Dept, Cost Center, Customer...',
+              query: _projectQuery,
+              onQueryChanged: (String v) => setState(() => _projectQuery = v),
+              filters: const <String>['All', 'Open', 'Completed', 'Cancelled'],
+              selectedFilter: _projectStatusFilter,
+              onFilterSelected: (String f) =>
+                  setState(() => _projectStatusFilter = f),
+              filteredCount: filteredProjects.length,
+              totalCount: _projects.length,
+            ),
+            const SizedBox(height: 12),
+            if (filteredProjects.isEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Center(
                     child: Text(
-                      'No Projects found. Tap "+ New Project" to create one.',
+                      _projects.isEmpty
+                          ? 'No Projects found. Tap "+ New Project" to create one.'
+                          : 'No Projects match "$_projectQuery" ($_projectStatusFilter).',
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                ],
+                ),
               )
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
-                itemCount: _projects.length,
-                itemBuilder: (BuildContext context, int i) {
-                  final Map<String, dynamic> p = _projects[i];
-                  final String docName = (p['name'] ?? '').toString();
-                  final String projTitle = (p['project_name'] ?? docName)
-                      .toString();
-                  final String status = (p['status'] ?? 'Open').toString();
-                  final double pct =
-                      (p['percent_complete'] as num?)?.toDouble() ?? 0.0;
-                  final double expClaim =
-                      (p['total_expense_claim'] as num?)?.toDouble() ?? 0.0;
-                  final double billed =
-                      (p['total_billed_amount'] as num?)?.toDouble() ?? 0.0;
-                  final String dept = (p['department'] ?? '').toString();
-                  final String costCenter = (p['cost_center'] ?? '').toString();
+            else
+              ...filteredProjects.map((Map<String, dynamic> p) {
+                final String docName = (p['name'] ?? '').toString();
+                final String projTitle = (p['project_name'] ?? docName)
+                    .toString();
+                final String status = (p['status'] ?? 'Open').toString();
+                final double pct =
+                    (p['percent_complete'] as num?)?.toDouble() ?? 0.0;
+                final double expClaim =
+                    (p['total_expense_claim'] as num?)?.toDouble() ?? 0.0;
+                final double billed =
+                    (p['total_billed_amount'] as num?)?.toDouble() ?? 0.0;
+                final String dept = (p['department'] ?? '').toString();
+                final String costCenter = (p['cost_center'] ?? '').toString();
 
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () => _openProjectDetailsAndEditSheet(p, sym),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                CircleAvatar(
-                                  radius: 18,
-                                  backgroundColor: status == 'Completed'
-                                      ? Colors.green.withValues(alpha: 0.14)
-                                      : Colors.teal.withValues(alpha: 0.14),
-                                  child: Icon(
-                                    status == 'Completed'
-                                        ? Icons.check_circle_rounded
-                                        : Icons.folder_special_rounded,
-                                    size: 18,
-                                    color: status == 'Completed'
-                                        ? Colors.green
-                                        : Colors.teal,
-                                  ),
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => _openProjectDetailsAndEditSheet(p, sym),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: status == 'Completed'
+                                    ? Colors.green.withValues(alpha: 0.14)
+                                    : Colors.teal.withValues(alpha: 0.14),
+                                child: Icon(
+                                  status == 'Completed'
+                                      ? Icons.check_circle_rounded
+                                      : Icons.folder_special_rounded,
+                                  size: 18,
+                                  color: status == 'Completed'
+                                      ? Colors.green
+                                      : Colors.teal,
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Text(
-                                        projTitle,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        <String>[
-                                          docName,
-                                          if (dept.isNotEmpty) dept,
-                                          if (costCenter.isNotEmpty) costCenter,
-                                        ].join(' • '),
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Chip(
-                                  label: Text(
-                                    '$status • ${pct.toInt()}%',
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            LinearProgressIndicator(
-                              value: (pct / 100.0).clamp(0.0, 1.0),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: <Widget>[
-                                Expanded(
-                                  child: Text(
-                                    'Billed: $sym${NumberFormat('#,##0').format(billed)} • Claims: $sym${NumberFormat('#,##0').format(expClaim)}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ),
-                                Wrap(
-                                  spacing: 6,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: <Widget>[
-                                    ActionChip(
-                                      avatar: const Icon(
-                                        Icons.add_task_rounded,
-                                        size: 14,
-                                      ),
-                                      label: const Text(
-                                        '+ Task',
-                                        style: TextStyle(fontSize: 11),
-                                      ),
-                                      visualDensity: VisualDensity.compact,
-                                      onPressed: () => _showCreateTaskSheet(
-                                        initialProject: docName,
+                                    Text(
+                                      projTitle,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
                                       ),
                                     ),
-                                    ActionChip(
-                                      avatar: const Icon(
-                                        Icons.edit_note_rounded,
-                                        size: 15,
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      <String>[
+                                        docName,
+                                        if (dept.isNotEmpty) dept,
+                                        if (costCenter.isNotEmpty) costCenter,
+                                      ].join(' • '),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey,
                                       ),
-                                      label: const Text(
-                                        'View / Edit',
-                                        style: TextStyle(fontSize: 11),
-                                      ),
-                                      visualDensity: VisualDensity.compact,
-                                      onPressed: () =>
-                                          _openProjectDetailsAndEditSheet(
-                                            p,
-                                            sym,
-                                          ),
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
-                          ],
-                        ),
+                              ),
+                              Chip(
+                                label: Text(
+                                  '$status • ${pct.toInt()}%',
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          LinearProgressIndicator(
+                            value: (pct / 100.0).clamp(0.0, 1.0),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: <Widget>[
+                              Expanded(
+                                child: Text(
+                                  'Billed: $sym${NumberFormat('#,##0').format(billed)} • Claims: $sym${NumberFormat('#,##0').format(expClaim)}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                              Wrap(
+                                spacing: 6,
+                                children: <Widget>[
+                                  ActionChip(
+                                    avatar: const Icon(
+                                      Icons.add_task_rounded,
+                                      size: 14,
+                                    ),
+                                    label: const Text(
+                                      '+ Task',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => _showCreateTaskSheet(
+                                      initialProject: docName,
+                                    ),
+                                  ),
+                                  ActionChip(
+                                    avatar: const Icon(
+                                      Icons.edit_note_rounded,
+                                      size: 15,
+                                    ),
+                                    label: const Text(
+                                      'View / Edit',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () =>
+                                        _openProjectDetailsAndEditSheet(p, sym),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              }),
+          ],
+        ),
       ),
     );
   }
@@ -2070,6 +2107,15 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
   }
 
   Widget _buildTasksTab() {
+    final List<Map<String, dynamic>> filteredTasks = _tasks.where((
+      Map<String, dynamic> t,
+    ) {
+      if (!ErpSearchBar.matchesFilter(t, _taskStatusFilter)) {
+        return false;
+      }
+      return ErpSearchBar.matchesQuery(t, _taskQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateTaskSheet,
@@ -2078,94 +2124,130 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
       ),
       body: RefreshIndicator(
         onRefresh: _loadData,
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
-          itemCount: _tasks.length,
-          itemBuilder: (BuildContext context, int i) {
-            final Map<String, dynamic> t = _tasks[i];
-            final String taskName = (t['name'] ?? '').toString();
-            final String status = (t['status'] ?? 'Open').toString();
-            final bool isCompleted = status == 'Completed';
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+          children: <Widget>[
+            ErpSearchBar(
+              hintText: 'Search Tasks by Subject, ID, Project, Department...',
+              query: _taskQuery,
+              onQueryChanged: (String v) => setState(() => _taskQuery = v),
+              filters: const <String>[
+                'All',
+                'Open',
+                'Working',
+                'Pending Review',
+                'Completed',
+                'High',
+              ],
+              selectedFilter: _taskStatusFilter,
+              onFilterSelected: (String f) =>
+                  setState(() => _taskStatusFilter = f),
+              filteredCount: filteredTasks.length,
+              totalCount: _tasks.length,
+            ),
+            const SizedBox(height: 12),
+            if (filteredTasks.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: Text('No Tasks match this search.')),
+                ),
+              )
+            else
+              ...filteredTasks.map((Map<String, dynamic> t) {
+                final String taskName = (t['name'] ?? '').toString();
+                final String status = (t['status'] ?? 'Open').toString();
+                final bool isCompleted = status == 'Completed';
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                onTap: () => ErpDocSheet.showViewAndEdit(
-                  context,
-                  doctype: 'Task',
-                  docname: taskName,
-                  onSaved: _loadData,
-                ),
-                leading: Icon(
-                  isCompleted
-                      ? Icons.task_alt_rounded
-                      : Icons.pending_actions_rounded,
-                  color: isCompleted ? Colors.green : Colors.blue,
-                ),
-                title: Text(
-                  '${t['subject'] ?? taskName}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  '$taskName • Project: ${t['project'] ?? 'General'} • $status (${t['priority'] ?? 'Medium'})',
-                ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (String action) async {
-                    if (action == '__EDIT__') {
-                      await ErpDocSheet.showViewAndEdit(
-                        context,
-                        doctype: 'Task',
-                        docname: taskName,
-                        onSaved: _loadData,
-                      );
-                      return;
-                    }
-                    try {
-                      await ErpApiClient.instance.updateDoc(
-                        'Task',
-                        taskName,
-                        <String, dynamic>{
-                          'status': action,
-                          if (action == 'Completed') 'progress': 100,
-                        },
-                      );
-                      await _loadData();
-                    } catch (_) {}
-                  },
-                  itemBuilder: (BuildContext context) =>
-                      const <PopupMenuEntry<String>>[
-                        PopupMenuItem<String>(
-                          value: '__EDIT__',
-                          child: Text('View / Edit Full Task'),
-                        ),
-                        PopupMenuDivider(),
-                        PopupMenuItem<String>(
-                          value: 'Open',
-                          child: Text('Set Open'),
-                        ),
-                        PopupMenuItem<String>(
-                          value: 'Working',
-                          child: Text('Set Working'),
-                        ),
-                        PopupMenuItem<String>(
-                          value: 'Pending Review',
-                          child: Text('Set Pending Review'),
-                        ),
-                        PopupMenuItem<String>(
-                          value: 'Completed',
-                          child: Text('Mark Completed'),
-                        ),
-                      ],
-                ),
-              ),
-            );
-          },
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    onTap: () => ErpDocSheet.showViewAndEdit(
+                      context,
+                      doctype: 'Task',
+                      docname: taskName,
+                      onSaved: _loadData,
+                    ),
+                    leading: Icon(
+                      isCompleted
+                          ? Icons.task_alt_rounded
+                          : Icons.pending_actions_rounded,
+                      color: isCompleted ? Colors.green : Colors.blue,
+                    ),
+                    title: Text(
+                      '${t['subject'] ?? taskName}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      '$taskName • Project: ${t['project'] ?? 'General'} • $status (${t['priority'] ?? 'Medium'})',
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      onSelected: (String action) async {
+                        if (action == '__EDIT__') {
+                          await ErpDocSheet.showViewAndEdit(
+                            context,
+                            doctype: 'Task',
+                            docname: taskName,
+                            onSaved: _loadData,
+                          );
+                          return;
+                        }
+                        try {
+                          await ErpApiClient.instance.updateDoc(
+                            'Task',
+                            taskName,
+                            <String, dynamic>{
+                              'status': action,
+                              if (action == 'Completed') 'progress': 100,
+                            },
+                          );
+                          await _loadData();
+                        } catch (_) {}
+                      },
+                      itemBuilder: (BuildContext context) =>
+                          const <PopupMenuEntry<String>>[
+                            PopupMenuItem<String>(
+                              value: '__EDIT__',
+                              child: Text('View / Edit Full Task'),
+                            ),
+                            PopupMenuDivider(),
+                            PopupMenuItem<String>(
+                              value: 'Open',
+                              child: Text('Set Open'),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'Working',
+                              child: Text('Set Working'),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'Pending Review',
+                              child: Text('Set Pending Review'),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'Completed',
+                              child: Text('Mark Completed'),
+                            ),
+                          ],
+                    ),
+                  ),
+                );
+              }),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildTimesheetsTab() {
+    final List<Map<String, dynamic>> filteredTimesheets = _timesheets.where((
+      Map<String, dynamic> ts,
+    ) {
+      if (!ErpSearchBar.matchesFilter(ts, _timesheetStatusFilter)) {
+        return false;
+      }
+      return ErpSearchBar.matchesQuery(ts, _timesheetQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateTimesheetSheet,
@@ -2174,50 +2256,88 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
       ),
       body: RefreshIndicator(
         onRefresh: _loadData,
-        child: _timesheets.isEmpty
-            ? ListView(
-                padding: const EdgeInsets.all(24),
-                children: const <Widget>[
-                  Center(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+          children: <Widget>[
+            ErpSearchBar(
+              hintText: 'Search Timesheets by Employee, ID, Date...',
+              query: _timesheetQuery,
+              onQueryChanged: (String v) => setState(() => _timesheetQuery = v),
+              filters: const <String>['All', 'Draft', 'Submitted'],
+              selectedFilter: _timesheetStatusFilter,
+              onFilterSelected: (String f) =>
+                  setState(() => _timesheetStatusFilter = f),
+              filteredCount: filteredTimesheets.length,
+              totalCount: _timesheets.length,
+            ),
+            const SizedBox(height: 12),
+            if (filteredTimesheets.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(
                     child: Text(
-                      'No Timesheets logged yet. Tap "+ Log Hours" to record project time.',
+                      'No Timesheets match. Tap "+ Log Hours" to record project time.',
                     ),
                   ),
-                ],
+                ),
               )
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
-                itemCount: _timesheets.length,
-                itemBuilder: (BuildContext context, int i) {
-                  final Map<String, dynamic> ts = _timesheets[i];
-                  final String docName = (ts['name'] ?? '').toString();
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      onTap: () => ErpDocSheet.showViewAndEdit(
-                        context,
-                        doctype: 'Timesheet',
-                        docname: docName,
-                        onSaved: _loadData,
-                      ),
-                      leading: const Icon(Icons.timer_outlined),
-                      title: Text(
-                        '${ts['employee_name'] ?? ts['employee'] ?? docName} • ${ts['total_hours'] ?? 0} hrs',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        '$docName • Date: ${ts['start_date'] ?? ''} • ${ts['status'] ?? 'Draft'}',
-                      ),
-                      trailing: const Icon(Icons.edit_outlined, size: 18),
+            else
+              ...filteredTimesheets.map((Map<String, dynamic> ts) {
+                final String docName = (ts['name'] ?? '').toString();
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    onTap: () => ErpDocSheet.showViewAndEdit(
+                      context,
+                      doctype: 'Timesheet',
+                      docname: docName,
+                      onSaved: _loadData,
                     ),
-                  );
-                },
-              ),
+                    leading: const Icon(Icons.timer_outlined),
+                    title: Text(
+                      '${ts['employee_name'] ?? ts['employee'] ?? docName} • ${ts['total_hours'] ?? 0} hrs',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      '$docName • Date: ${ts['start_date'] ?? ''} • ${ts['status'] ?? 'Draft'}',
+                    ),
+                    trailing: const Icon(Icons.edit_outlined, size: 18),
+                  ),
+                );
+              }),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildMaterialRequestsTab() {
+    final List<Map<String, dynamic>> filteredMrs = _materialRequests.where((
+      Map<String, dynamic> mr,
+    ) {
+      if (_mrStockFilter != 'All') {
+        final String mrType = (mr['material_request_type'] ?? '').toString();
+        final String status = (mr['status'] ?? '').toString();
+        if (mrType != _mrStockFilter && status != _mrStockFilter) {
+          return false;
+        }
+      }
+      return ErpSearchBar.matchesQuery(mr, _mrStockQuery);
+    }).toList();
+
+    final List<Map<String, dynamic>> filteredSes = _stockEntries.where((
+      Map<String, dynamic> se,
+    ) {
+      if (_mrStockFilter != 'All') {
+        final String seType = (se['stock_entry_type'] ?? '').toString();
+        if (!seType.toLowerCase().contains(_mrStockFilter.toLowerCase())) {
+          return false;
+        }
+      }
+      return ErpSearchBar.matchesQuery(se, _mrStockQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateMaterialRequestSheet,
@@ -2227,22 +2347,40 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
           children: <Widget>[
+            ErpSearchBar(
+              hintText: 'Search Material Requests & Stock Entries by ID, Warehouse, Project...',
+              query: _mrStockQuery,
+              onQueryChanged: (String v) => setState(() => _mrStockQuery = v),
+              filters: const <String>[
+                'All',
+                'Purchase',
+                'Material Transfer',
+                'Material Issue',
+                'Draft',
+              ],
+              selectedFilter: _mrStockFilter,
+              onFilterSelected: (String f) =>
+                  setState(() => _mrStockFilter = f),
+              filteredCount: filteredMrs.length + filteredSes.length,
+              totalCount: _materialRequests.length + _stockEntries.length,
+            ),
+            const SizedBox(height: 12),
             const Text(
               'Material Requests & Fulfillment (Tap any card to View / Edit)',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            if (_materialRequests.isEmpty)
+            if (filteredMrs.isEmpty)
               const Card(
                 child: Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('No Material Requests found.'),
+                  child: Text('No Material Requests match this filter.'),
                 ),
               )
             else
-              ..._materialRequests.map((Map<String, dynamic> mr) {
+              ...filteredMrs.map((Map<String, dynamic> mr) {
                 final String mrName = (mr['name'] ?? '').toString();
                 final String mrType =
                     (mr['material_request_type'] ?? 'Purchase').toString();
@@ -2294,7 +2432,7 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
               ],
             ),
             const SizedBox(height: 8),
-            ..._stockEntries.map((Map<String, dynamic> se) {
+            ...filteredSes.map((Map<String, dynamic> se) {
               final String seName = (se['name'] ?? '').toString();
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -2324,6 +2462,15 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
   }
 
   Widget _buildDeliveryNotesTab(String sym) {
+    final List<Map<String, dynamic>> filteredDns = _deliveryNotes.where((
+      Map<String, dynamic> dn,
+    ) {
+      if (!ErpSearchBar.matchesFilter(dn, _deliveryNoteStatusFilter)) {
+        return false;
+      }
+      return ErpSearchBar.matchesQuery(dn, _deliveryNoteQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateDeliveryNoteSheet,
@@ -2332,52 +2479,95 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
       ),
       body: RefreshIndicator(
         onRefresh: _loadData,
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
-          itemCount: _deliveryNotes.length,
-          itemBuilder: (BuildContext context, int i) {
-            final Map<String, dynamic> dn = _deliveryNotes[i];
-            final String docName = (dn['name'] ?? '').toString();
-            final double gt = (dn['grand_total'] as num?)?.toDouble() ?? 0;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                onTap: () => ErpDocSheet.showViewAndEdit(
-                  context,
-                  doctype: 'Delivery Note',
-                  docname: docName,
-                  onSaved: _loadData,
-                ),
-                leading: const CircleAvatar(
-                  child: Icon(Icons.assignment_turned_in_rounded),
-                ),
-                title: Text(
-                  '${dn['customer_name'] ?? dn['customer'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  '$docName • ${dn['posting_date'] ?? ''} • ${dn['status'] ?? ''}',
-                ),
-                trailing: IconButton(
-                  tooltip: 'Download Delivery Note PDF',
-                  icon: const Icon(
-                    Icons.picture_as_pdf_rounded,
-                    color: Colors.redAccent,
-                  ),
-                  onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
-                    doctype: 'Delivery Note',
-                    docname: docName,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+          children: <Widget>[
+            ErpSearchBar(
+              hintText:
+                  'Search Delivery Notes by ID, Customer, Project, Date...',
+              query: _deliveryNoteQuery,
+              onQueryChanged: (String v) =>
+                  setState(() => _deliveryNoteQuery = v),
+              filters: const <String>['All', 'Draft', 'To Bill', 'Completed'],
+              selectedFilter: _deliveryNoteStatusFilter,
+              onFilterSelected: (String f) =>
+                  setState(() => _deliveryNoteStatusFilter = f),
+              filteredCount: filteredDns.length,
+              totalCount: _deliveryNotes.length,
+            ),
+            const SizedBox(height: 12),
+            if (filteredDns.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(
+                    child: Text('No Delivery Notes match this filter.'),
                   ),
                 ),
-              ),
-            );
-          },
+              )
+            else
+              ...filteredDns.map((Map<String, dynamic> dn) {
+                final String docName = (dn['name'] ?? '').toString();
+                final double gt = (dn['grand_total'] as num?)?.toDouble() ?? 0;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    onTap: () => ErpDocSheet.showViewAndEdit(
+                      context,
+                      doctype: 'Delivery Note',
+                      docname: docName,
+                      onSaved: _loadData,
+                    ),
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.assignment_turned_in_rounded),
+                    ),
+                    title: Text(
+                      '${dn['customer_name'] ?? dn['customer'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      '$docName • ${dn['posting_date'] ?? ''} • ${dn['status'] ?? ''}',
+                    ),
+                    trailing: IconButton(
+                      tooltip: 'Download Delivery Note PDF',
+                      icon: const Icon(
+                        Icons.picture_as_pdf_rounded,
+                        color: Colors.redAccent,
+                      ),
+                      onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
+                        doctype: 'Delivery Note',
+                        docname: docName,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildStockBalanceTab(String sym) {
+    final List<Map<String, dynamic>> filteredBins = _bins.where((
+      Map<String, dynamic> bin,
+    ) {
+      final double actualQty = (bin['actual_qty'] as num?)?.toDouble() ?? 0;
+      if (_stockBalanceFilter == 'In Stock' && actualQty <= 0) {
+        return false;
+      }
+      if (_stockBalanceFilter == 'Out of Stock' && actualQty > 0) {
+        return false;
+      }
+      return ErpSearchBar.matchesQuery(bin, _stockBalanceQuery);
+    }).toList();
+
+    final List<Map<String, dynamic>> filteredPrices = _itemPrices.where((
+      Map<String, dynamic> ip,
+    ) {
+      return ErpSearchBar.matchesQuery(ip, _stockBalanceQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => ErpDocSheet.showCreate(
@@ -2391,14 +2581,30 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
       body: RefreshIndicator(
         onRefresh: _loadData,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
           children: <Widget>[
+            ErpSearchBar(
+              hintText: 'Search Stock Balance & Item Prices by Item Code, Name, Warehouse...',
+              query: _stockBalanceQuery,
+              onQueryChanged: (String v) =>
+                  setState(() => _stockBalanceQuery = v),
+              filters: const <String>['All', 'In Stock', 'Out of Stock'],
+              selectedFilter: _stockBalanceFilter,
+              onFilterSelected: (String f) =>
+                  setState(() => _stockBalanceFilter = f),
+              filteredCount: filteredBins.length + filteredPrices.length,
+              totalCount: _bins.length + _itemPrices.length,
+            ),
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
-                const Text(
-                  'Warehouse Stock Balance (Bin)',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                Text(
+                  'Warehouse Stock Balance (${filteredBins.length})',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: () => ErpDocSheet.showCreate(
@@ -2412,7 +2618,7 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
               ],
             ),
             const SizedBox(height: 8),
-            ..._bins.map((Map<String, dynamic> bin) {
+            ...filteredBins.map((Map<String, dynamic> bin) {
               final String binName = (bin['name'] ?? '').toString();
               final double actualQty =
                   (bin['actual_qty'] as num?)?.toDouble() ?? 0;
@@ -2450,12 +2656,12 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
               );
             }),
             const SizedBox(height: 16),
-            const Text(
-              'Item Price List (Tap to Edit Rate)',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            Text(
+              'Item Price List (${filteredPrices.length}) — Tap to Edit Rate',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            ..._itemPrices.map((Map<String, dynamic> ip) {
+            ...filteredPrices.map((Map<String, dynamic> ip) {
               final String ipName = (ip['name'] ?? '').toString();
               final double rate =
                   (ip['price_list_rate'] as num?)?.toDouble() ?? 0;

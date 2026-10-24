@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/erp_search_bar.dart';
 
 class QuickTodoScreen extends StatefulWidget {
   const QuickTodoScreen({super.key, this.initialTab = 0});
@@ -24,6 +25,8 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
   String _quickPriority = 'Medium';
   DateTime _quickDueDate = DateTime.now();
   String _statusFilter = 'Open'; // 'All', 'Open', 'Due Today', 'High', 'Closed'
+  String _activityQuery = '';
+  String _activityFilter = 'All';
 
   List<Map<String, dynamic>> _todos = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _crmTasks = <Map<String, dynamic>>[];
@@ -1283,86 +1286,123 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
   }
 
   Widget _buildActivityTimelineTab(ColorScheme colors) {
-    return RefreshIndicator(
-      onRefresh: _loadTodosAndActivity,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-        children: <Widget>[
-          Card(
-            color: colors.secondaryContainer.withValues(alpha: 0.45),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: colors.primary,
-                child: const Icon(
-                  Icons.add_comment_rounded,
-                  color: Colors.white,
-                ),
-              ),
-              title: const Text(
-                'Log Daily Activity / Follow-up Note',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: const Text(
-                'Record client calls, site visits, or task progress in 1 tap',
-                style: TextStyle(fontSize: 12),
-              ),
-              trailing: FilledButton.tonal(
-                onPressed: () => _showLogActivitySheet(),
-                child: const Text('Log Note'),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Recent Activity & Progress Notes',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          if (_activityNotes.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'No activity logs yet. Tap "Log Note" above or "Log Activity" on any ToDo task.',
-                ),
-              ),
-            )
-          else
-            ..._activityNotes.map((Map<String, dynamic> n) {
-              final String rawContent = (n['content'] ?? n['title'] ?? '')
-                  .toString()
-                  .replaceAll(RegExp(r'<[^>]*>'), '');
-              final String refDocType = (n['reference_doctype'] ?? 'Activity')
-                  .toString();
-              final String refName =
-                  (n['reference_name'] ?? n['reference_docname'] ?? '')
-                      .toString();
-              return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.teal.withValues(alpha: 0.14),
-                    child: const Icon(
-                      Icons.history_edu_rounded,
-                      color: Colors.teal,
+    final List<Map<String, dynamic>> filteredNotes = _activityNotes.where((
+      Map<String, dynamic> n,
+    ) {
+      if (_activityFilter != 'All') {
+        final String refDocType = (n['reference_doctype'] ?? '').toString();
+        if (!refDocType.toLowerCase().contains(_activityFilter.toLowerCase())) {
+          return false;
+        }
+      }
+      return ErpSearchBar.matchesQuery(n, _activityQuery);
+    }).toList();
+
+    return Column(
+      children: <Widget>[
+        ErpSearchBar(
+          hintText: 'Search Activity Notes (content, linked ToDo/Lead/Deal, author)...',
+          query: _activityQuery,
+          onQueryChanged: (String v) => setState(() => _activityQuery = v),
+          filters: const <String>[
+            'All',
+            'ToDo',
+            'CRM Lead',
+            'CRM Deal',
+            'Project',
+          ],
+          selectedFilter: _activityFilter,
+          onFilterChanged: (String f) => setState(() => _activityFilter = f),
+          resultCount: filteredNotes.length,
+          totalCount: _activityNotes.length,
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadTodosAndActivity,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+              children: <Widget>[
+                Card(
+                  color: colors.secondaryContainer.withValues(alpha: 0.45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: colors.primary,
+                      child: const Icon(
+                        Icons.add_comment_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                    title: const Text(
+                      'Log Daily Activity / Follow-up Note',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: const Text(
+                      'Record client calls, site visits, or task progress in 1 tap',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    trailing: FilledButton.tonal(
+                      onPressed: () => _showLogActivitySheet(),
+                      child: const Text('Log Note'),
                     ),
                   ),
-                  title: Text(
-                    rawContent,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    '$refDocType ${refName.isNotEmpty ? '• $refName' : ''}\nBy ${n['owner'] ?? 'User'} • ${n['creation'] ?? ''}',
-                  ),
-                  isThreeLine: true,
                 ),
-              );
-            }),
-        ],
-      ),
+                const SizedBox(height: 16),
+                Text(
+                  'Recent Activity & Progress Notes (${filteredNotes.length})',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (filteredNotes.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'No matching activity logs found. Tap "Log Note" above or "Log Activity" on any ToDo task.',
+                      ),
+                    ),
+                  )
+                else
+                  ...filteredNotes.map((Map<String, dynamic> n) {
+                    final String rawContent = (n['content'] ?? n['title'] ?? '')
+                        .toString()
+                        .replaceAll(RegExp(r'<[^>]*>'), '');
+                    final String refDocType =
+                        (n['reference_doctype'] ?? 'Activity').toString();
+                    final String refName =
+                        (n['reference_name'] ?? n['reference_docname'] ?? '')
+                            .toString();
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.teal.withValues(alpha: 0.14),
+                          child: const Icon(
+                            Icons.history_edu_rounded,
+                            color: Colors.teal,
+                          ),
+                        ),
+                        title: Text(
+                          rawContent,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          '$refDocType ${refName.isNotEmpty ? '• $refName' : ''}\nBy ${n['owner'] ?? 'User'} • ${n['creation'] ?? ''}',
+                        ),
+                        isThreeLine: true,
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

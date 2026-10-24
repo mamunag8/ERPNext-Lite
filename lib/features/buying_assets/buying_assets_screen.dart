@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
 import '../../core/widgets/erp_doc_sheet.dart';
+import '../../core/widgets/erp_search_bar.dart';
 
 class BuyingAndAssetsScreen extends StatefulWidget {
   const BuyingAndAssetsScreen({super.key, this.initialTab = 0});
@@ -26,6 +27,16 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
   List<Map<String, dynamic>> _assets = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _assetMovements = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _items = <Map<String, dynamic>>[];
+
+  String _poQuery = '';
+  String _poStatusFilter = 'All';
+  String _prQuery = '';
+  String _prStatusFilter = 'All';
+  String _pinvQuery = '';
+  String _pinvStatusFilter = 'All';
+  String _supplierQuery = '';
+  String _assetQuery = '';
+  String _assetStatusFilter = 'All';
 
   @override
   void initState() {
@@ -211,291 +222,445 @@ class _BuyingAndAssetsScreenState extends State<BuyingAndAssetsScreen>
   }
 
   Widget _buildPurchaseOrdersTab(String sym) {
+    final List<Map<String, dynamic>> filteredPos = _purchaseOrders.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _poStatusFilter) &&
+          ErpSearchBar.matchesQuery(row, _poQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreatePurchaseVoucherSheet('Purchase Order'),
         icon: const Icon(Icons.add_shopping_cart_rounded),
         label: const Text('New Purchase Order'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
-          itemCount: _purchaseOrders.length,
-          itemBuilder: (BuildContext context, int i) {
-            final Map<String, dynamic> po = _purchaseOrders[i];
-            final String docName = (po['name'] ?? '').toString();
-            final double gt = (po['grand_total'] as num?)?.toDouble() ?? 0;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                onTap: () => ErpDocSheet.showViewAndEdit(
-                  context,
-                  doctype: 'Purchase Order',
-                  docname: docName,
-                  onSaved: _loadData,
-                ),
-                title: Text(
-                  '${po['supplier_name'] ?? po['supplier'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  '$docName • ${po['transaction_date'] ?? ''} • ${po['status'] ?? ''}',
-                ),
-                trailing: IconButton(
-                  tooltip: 'Download Purchase Order PDF',
-                  icon: const Icon(
-                    Icons.picture_as_pdf_rounded,
-                    color: Colors.redAccent,
-                  ),
-                  onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
-                    doctype: 'Purchase Order',
-                    docname: docName,
-                  ),
-                ),
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText: 'Search Purchase Orders (ID, supplier, date, status)...',
+            query: _poQuery,
+            onQueryChanged: (String v) => setState(() => _poQuery = v),
+            filters: const <String>[
+              'All',
+              'To Receive and Bill',
+              'To Bill',
+              'Completed',
+              'Draft',
+            ],
+            selectedFilter: _poStatusFilter,
+            onFilterChanged: (String f) => setState(() => _poStatusFilter = f),
+            resultCount: filteredPos.length,
+            totalCount: _purchaseOrders.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                itemCount: filteredPos.length,
+                itemBuilder: (BuildContext context, int i) {
+                  final Map<String, dynamic> po = filteredPos[i];
+                  final String docName = (po['name'] ?? '').toString();
+                  final double gt =
+                      (po['grand_total'] as num?)?.toDouble() ?? 0;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      onTap: () => ErpDocSheet.showViewAndEdit(
+                        context,
+                        doctype: 'Purchase Order',
+                        docname: docName,
+                        onSaved: _loadData,
+                      ),
+                      title: Text(
+                        '${po['supplier_name'] ?? po['supplier'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        '$docName • ${po['transaction_date'] ?? ''} • ${po['status'] ?? ''}',
+                      ),
+                      trailing: IconButton(
+                        tooltip: 'Download Purchase Order PDF',
+                        icon: const Icon(
+                          Icons.picture_as_pdf_rounded,
+                          color: Colors.redAccent,
+                        ),
+                        onPressed: () =>
+                            ErpApiClient.instance.downloadAndOpenPdf(
+                              doctype: 'Purchase Order',
+                              docname: docName,
+                            ),
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildPurchaseReceiptsTab(String sym) {
+    final List<Map<String, dynamic>> filteredPrs = _purchaseReceipts.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _prStatusFilter) &&
+          ErpSearchBar.matchesQuery(row, _prQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreatePurchaseVoucherSheet('Purchase Receipt'),
         icon: const Icon(Icons.add_box_rounded),
         label: const Text('New Receipt'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
-          itemCount: _purchaseReceipts.length,
-          itemBuilder: (BuildContext context, int i) {
-            final Map<String, dynamic> pr = _purchaseReceipts[i];
-            final String docName = (pr['name'] ?? '').toString();
-            final double gt = (pr['grand_total'] as num?)?.toDouble() ?? 0;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                onTap: () => ErpDocSheet.showViewAndEdit(
-                  context,
-                  doctype: 'Purchase Receipt',
-                  docname: docName,
-                  onSaved: _loadData,
-                ),
-                title: Text(
-                  '${pr['supplier_name'] ?? pr['supplier'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  '$docName • ${pr['posting_date'] ?? ''} • ${pr['status'] ?? ''}',
-                ),
-                trailing: IconButton(
-                  tooltip: 'Download Purchase Receipt PDF',
-                  icon: const Icon(
-                    Icons.picture_as_pdf_rounded,
-                    color: Colors.redAccent,
-                  ),
-                  onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
-                    doctype: 'Purchase Receipt',
-                    docname: docName,
-                  ),
-                ),
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText:
+                'Search Purchase Receipts (ID, supplier, date, status)...',
+            query: _prQuery,
+            onQueryChanged: (String v) => setState(() => _prQuery = v),
+            filters: const <String>['All', 'To Bill', 'Completed', 'Draft'],
+            selectedFilter: _prStatusFilter,
+            onFilterChanged: (String f) => setState(() => _prStatusFilter = f),
+            resultCount: filteredPrs.length,
+            totalCount: _purchaseReceipts.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                itemCount: filteredPrs.length,
+                itemBuilder: (BuildContext context, int i) {
+                  final Map<String, dynamic> pr = filteredPrs[i];
+                  final String docName = (pr['name'] ?? '').toString();
+                  final double gt =
+                      (pr['grand_total'] as num?)?.toDouble() ?? 0;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      onTap: () => ErpDocSheet.showViewAndEdit(
+                        context,
+                        doctype: 'Purchase Receipt',
+                        docname: docName,
+                        onSaved: _loadData,
+                      ),
+                      title: Text(
+                        '${pr['supplier_name'] ?? pr['supplier'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        '$docName • ${pr['posting_date'] ?? ''} • ${pr['status'] ?? ''}',
+                      ),
+                      trailing: IconButton(
+                        tooltip: 'Download Purchase Receipt PDF',
+                        icon: const Icon(
+                          Icons.picture_as_pdf_rounded,
+                          color: Colors.redAccent,
+                        ),
+                        onPressed: () =>
+                            ErpApiClient.instance.downloadAndOpenPdf(
+                              doctype: 'Purchase Receipt',
+                              docname: docName,
+                            ),
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildPurchaseInvoicesTab(String sym) {
+    final List<Map<String, dynamic>> filteredPinvs = _purchaseInvoices.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _pinvStatusFilter) &&
+          ErpSearchBar.matchesQuery(row, _pinvQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreatePurchaseVoucherSheet('Purchase Invoice'),
         icon: const Icon(Icons.receipt_long_rounded),
         label: const Text('New Pur. Invoice'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
-          itemCount: _purchaseInvoices.length,
-          itemBuilder: (BuildContext context, int i) {
-            final Map<String, dynamic> pinv = _purchaseInvoices[i];
-            final String docName = (pinv['name'] ?? '').toString();
-            final double gt = (pinv['grand_total'] as num?)?.toDouble() ?? 0;
-            final double out =
-                (pinv['outstanding_amount'] as num?)?.toDouble() ?? 0;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                onTap: () => ErpDocSheet.showViewAndEdit(
-                  context,
-                  doctype: 'Purchase Invoice',
-                  docname: docName,
-                  onSaved: _loadData,
-                ),
-                title: Text(
-                  '${pinv['supplier_name'] ?? pinv['supplier'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  '$docName • ${pinv['posting_date'] ?? ''} • Due: $sym${NumberFormat('#,##0').format(out)} (${pinv['status'] ?? ''})',
-                ),
-                trailing: IconButton(
-                  tooltip: 'Download Purchase Invoice PDF',
-                  icon: const Icon(
-                    Icons.picture_as_pdf_rounded,
-                    color: Colors.redAccent,
-                  ),
-                  onPressed: () => ErpApiClient.instance.downloadAndOpenPdf(
-                    doctype: 'Purchase Invoice',
-                    docname: docName,
-                  ),
-                ),
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText:
+                'Search Purchase Invoices (ID, supplier, date, status)...',
+            query: _pinvQuery,
+            onQueryChanged: (String v) => setState(() => _pinvQuery = v),
+            filters: const <String>[
+              'All',
+              'Unpaid',
+              'Overdue',
+              'Paid',
+              'Draft',
+            ],
+            selectedFilter: _pinvStatusFilter,
+            onFilterChanged: (String f) =>
+                setState(() => _pinvStatusFilter = f),
+            resultCount: filteredPinvs.length,
+            totalCount: _purchaseInvoices.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                itemCount: filteredPinvs.length,
+                itemBuilder: (BuildContext context, int i) {
+                  final Map<String, dynamic> pinv = filteredPinvs[i];
+                  final String docName = (pinv['name'] ?? '').toString();
+                  final double gt =
+                      (pinv['grand_total'] as num?)?.toDouble() ?? 0;
+                  final double out =
+                      (pinv['outstanding_amount'] as num?)?.toDouble() ?? 0;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      onTap: () => ErpDocSheet.showViewAndEdit(
+                        context,
+                        doctype: 'Purchase Invoice',
+                        docname: docName,
+                        onSaved: _loadData,
+                      ),
+                      title: Text(
+                        '${pinv['supplier_name'] ?? pinv['supplier'] ?? docName} • $sym${NumberFormat('#,##0').format(gt)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        '$docName • ${pinv['posting_date'] ?? ''} • Due: $sym${NumberFormat('#,##0').format(out)} (${pinv['status'] ?? ''})',
+                      ),
+                      trailing: IconButton(
+                        tooltip: 'Download Purchase Invoice PDF',
+                        icon: const Icon(
+                          Icons.picture_as_pdf_rounded,
+                          color: Colors.redAccent,
+                        ),
+                        onPressed: () =>
+                            ErpApiClient.instance.downloadAndOpenPdf(
+                              doctype: 'Purchase Invoice',
+                              docname: docName,
+                            ),
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildSuppliersTab() {
+    final List<Map<String, dynamic>> filteredSuppliers = _suppliers.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesQuery(row, _supplierQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateSupplierSheet,
         icon: const Icon(Icons.person_add_alt_1_rounded),
         label: const Text('New Supplier'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
-          itemCount: _suppliers.length,
-          itemBuilder: (BuildContext context, int i) {
-            final Map<String, dynamic> s = _suppliers[i];
-            final String docName = (s['name'] ?? '').toString();
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                onTap: () => ErpDocSheet.showViewAndEdit(
-                  context,
-                  doctype: 'Supplier',
-                  docname: docName,
-                  onSaved: _loadData,
-                ),
-                leading: const CircleAvatar(
-                  child: Icon(Icons.storefront_rounded),
-                ),
-                title: Text(
-                  '${s['supplier_name'] ?? docName}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  'Group: ${s['supplier_group'] ?? 'All Supplier Groups'} • ${s['country'] ?? 'Bangladesh'}',
-                ),
-                trailing: const Icon(Icons.edit_outlined, size: 18),
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText: 'Search Suppliers (name, ID, group, country)...',
+            query: _supplierQuery,
+            onQueryChanged: (String v) => setState(() => _supplierQuery = v),
+            resultCount: filteredSuppliers.length,
+            totalCount: _suppliers.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                itemCount: filteredSuppliers.length,
+                itemBuilder: (BuildContext context, int i) {
+                  final Map<String, dynamic> s = filteredSuppliers[i];
+                  final String docName = (s['name'] ?? '').toString();
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      onTap: () => ErpDocSheet.showViewAndEdit(
+                        context,
+                        doctype: 'Supplier',
+                        docname: docName,
+                        onSaved: _loadData,
+                      ),
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.storefront_rounded),
+                      ),
+                      title: Text(
+                        '${s['supplier_name'] ?? docName}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        'Group: ${s['supplier_group'] ?? 'All Supplier Groups'} • ${s['country'] ?? 'Bangladesh'}',
+                      ),
+                      trailing: const Icon(Icons.edit_outlined, size: 18),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildAssetsTab(String sym) {
+    final List<Map<String, dynamic>> filteredAssets = _assets.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _assetStatusFilter) &&
+          ErpSearchBar.matchesQuery(row, _assetQuery);
+    }).toList();
+
+    final List<Map<String, dynamic>> filteredMovements = _assetMovements.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _assetStatusFilter) &&
+          ErpSearchBar.matchesQuery(row, _assetQuery);
+    }).toList();
+
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateAssetMovementSheet,
         icon: const Icon(Icons.swap_horiz_rounded),
         label: const Text('New Asset Movement'),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 88),
-          children: <Widget>[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                const Text(
-                  'Company Assets Register (Tap to Edit)',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-                TextButton.icon(
-                  onPressed: () => ErpDocSheet.showCreate(
-                    context,
-                    doctype: 'Asset',
-                    onCreated: _loadData,
+      body: Column(
+        children: <Widget>[
+          ErpSearchBar(
+            hintText:
+                'Search Assets & Movements (ID, name, category, location)...',
+            query: _assetQuery,
+            onQueryChanged: (String v) => setState(() => _assetQuery = v),
+            filters: const <String>[
+              'All',
+              'Submitted',
+              'Partially Depreciated',
+              'Draft',
+            ],
+            selectedFilter: _assetStatusFilter,
+            onFilterChanged: (String f) =>
+                setState(() => _assetStatusFilter = f),
+            resultCount: filteredAssets.length + filteredMovements.length,
+            totalCount: _assets.length + _assetMovements.length,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                children: <Widget>[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      Text(
+                        'Company Assets Register (${filteredAssets.length})',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => ErpDocSheet.showCreate(
+                          context,
+                          doctype: 'Asset',
+                          onCreated: _loadData,
+                        ),
+                        icon: const Icon(Icons.add_rounded, size: 16),
+                        label: const Text('+ New Asset'),
+                      ),
+                    ],
                   ),
-                  icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text('+ New Asset'),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  ...filteredAssets.map((Map<String, dynamic> a) {
+                    final String assetName = (a['name'] ?? '').toString();
+                    final double val =
+                        (a['gross_purchase_amount'] as num?)?.toDouble() ?? 0;
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        onTap: () => ErpDocSheet.showViewAndEdit(
+                          context,
+                          doctype: 'Asset',
+                          docname: assetName,
+                          onSaved: _loadData,
+                        ),
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.precision_manufacturing_rounded),
+                        ),
+                        title: Text(
+                          '${a['asset_name'] ?? assetName} ($assetName)',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          'Category: ${a['asset_category'] ?? 'General'} • Location: ${a['location'] ?? 'N/A'}\nValue: $sym${NumberFormat('#,##0').format(val)} • Status: ${a['status'] ?? ''}',
+                        ),
+                        isThreeLine: true,
+                        trailing: const Icon(Icons.edit_outlined, size: 18),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Recent Asset Movements (${filteredMovements.length})',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...filteredMovements.map((Map<String, dynamic> m) {
+                    final String moveName = (m['name'] ?? '').toString();
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        onTap: () => ErpDocSheet.showViewAndEdit(
+                          context,
+                          doctype: 'Asset Movement',
+                          docname: moveName,
+                          onSaved: _loadData,
+                        ),
+                        leading: const Icon(
+                          Icons.swap_horizontal_circle_outlined,
+                        ),
+                        title: Text(
+                          '$moveName • ${m['purpose'] ?? 'Transfer'}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text('Date: ${m['transaction_date'] ?? ''}'),
+                        trailing: const Icon(Icons.edit_outlined, size: 18),
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            ..._assets.map((Map<String, dynamic> a) {
-              final String assetName = (a['name'] ?? '').toString();
-              final double val =
-                  (a['gross_purchase_amount'] as num?)?.toDouble() ?? 0;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  onTap: () => ErpDocSheet.showViewAndEdit(
-                    context,
-                    doctype: 'Asset',
-                    docname: assetName,
-                    onSaved: _loadData,
-                  ),
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.precision_manufacturing_rounded),
-                  ),
-                  title: Text(
-                    '${a['asset_name'] ?? assetName} ($assetName)',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    'Category: ${a['asset_category'] ?? 'General'} • Location: ${a['location'] ?? 'N/A'}\nValue: $sym${NumberFormat('#,##0').format(val)} • Status: ${a['status'] ?? ''}',
-                  ),
-                  isThreeLine: true,
-                  trailing: const Icon(Icons.edit_outlined, size: 18),
-                ),
-              );
-            }),
-            const SizedBox(height: 16),
-            const Text(
-              'Recent Asset Movements (Issue / Transfer / Receipt)',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            ..._assetMovements.map((Map<String, dynamic> m) {
-              final String moveName = (m['name'] ?? '').toString();
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  onTap: () => ErpDocSheet.showViewAndEdit(
-                    context,
-                    doctype: 'Asset Movement',
-                    docname: moveName,
-                    onSaved: _loadData,
-                  ),
-                  leading: const Icon(Icons.swap_horizontal_circle_outlined),
-                  title: Text(
-                    '$moveName • ${m['purpose'] ?? 'Transfer'}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text('Date: ${m['transaction_date'] ?? ''}'),
-                  trailing: const Icon(Icons.edit_outlined, size: 18),
-                ),
-              );
-            }),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

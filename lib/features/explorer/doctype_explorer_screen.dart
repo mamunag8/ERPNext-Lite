@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/widgets/erp_doc_sheet.dart';
+import '../../core/widgets/erp_search_bar.dart';
 
 class DocTypeExplorerScreen extends StatefulWidget {
   const DocTypeExplorerScreen({super.key, this.initialDocType = 'Customer'});
@@ -58,7 +59,8 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
 
   late String _selectedDocType;
   late TextEditingController _customDocTypeCtrl;
-  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+  String _statusFilter = 'All';
   bool _loading = false;
   List<Map<String, dynamic>> _records = <Map<String, dynamic>>[];
 
@@ -73,7 +75,6 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
   @override
   void dispose() {
     _customDocTypeCtrl.dispose();
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -88,18 +89,11 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
     });
 
     try {
-      final List<List<dynamic>>? filters = _searchCtrl.text.trim().isNotEmpty
-          ? <List<dynamic>>[
-              <dynamic>['name', 'like', '%${_searchCtrl.text.trim()}%'],
-            ]
-          : null;
-
       final List<Map<String, dynamic>> rows = await ErpApiClient.instance
           .getList(
             dt,
             fields: const <String>['name', 'modified', 'owner', 'docstatus'],
-            listFilters: filters,
-            limitPageLength: 60,
+            limitPageLength: 80,
           );
       if (mounted) {
         setState(() => _records = rows);
@@ -136,8 +130,33 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final String dtFilter = _customDocTypeCtrl.text.trim().toLowerCase();
+    final List<String> matchingDocTypes =
+        dtFilter.isEmpty ||
+            _popularDocTypes.any((String d) => d.toLowerCase() == dtFilter)
+        ? _popularDocTypes
+        : _popularDocTypes
+              .where((String d) => d.toLowerCase().contains(dtFilter))
+              .toList();
+
+    final List<Map<String, dynamic>> filteredRecords = _records.where((
+      Map<String, dynamic> row,
+    ) {
+      return ErpSearchBar.matchesFilter(row, _statusFilter) &&
+          ErpSearchBar.matchesQuery(row, _searchQuery);
+    }).toList();
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Universal DocType Explorer')),
+      appBar: AppBar(
+        title: const Text('Universal DocType Explorer'),
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'Refresh $_selectedDocType',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _loadRecords,
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateGenericDocSheet,
         icon: const Icon(Icons.add_rounded),
@@ -146,7 +165,7 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
       body: Column(
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
             child: Column(
               children: <Widget>[
                 Row(
@@ -154,8 +173,9 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
                     Expanded(
                       child: TextField(
                         controller: _customDocTypeCtrl,
+                        onChanged: (_) => setState(() {}),
                         decoration: const InputDecoration(
-                          labelText: 'DocType Name (Any ERPNext DocType)',
+                          labelText: 'Search or Type Any ERPNext DocType Name',
                           prefixIcon: Icon(Icons.table_chart_outlined),
                           border: OutlineInputBorder(),
                           isDense: true,
@@ -175,10 +195,10 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
                   height: 36,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: _popularDocTypes.length,
+                    itemCount: matchingDocTypes.length,
                     separatorBuilder: (_, _) => const SizedBox(width: 6),
                     itemBuilder: (BuildContext context, int i) {
-                      final String dt = _popularDocTypes[i];
+                      final String dt = matchingDocTypes[i];
                       final bool selected = dt == _selectedDocType;
                       return ChoiceChip(
                         label: Text(dt, style: const TextStyle(fontSize: 12)),
@@ -192,48 +212,42 @@ class _DocTypeExplorerScreenState extends State<DocTypeExplorerScreen> {
                     },
                   ),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _searchCtrl,
-                  decoration: InputDecoration(
-                    hintText: 'Filter $_selectedDocType by ID / Name...',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.refresh_rounded),
-                      onPressed: _loadRecords,
-                    ),
-                  ),
-                  onSubmitted: (_) => _loadRecords(),
-                ),
               ],
             ),
+          ),
+          ErpSearchBar(
+            hintText:
+                'Search $_selectedDocType records (ID, owner, modified date)...',
+            query: _searchQuery,
+            onQueryChanged: (String v) => setState(() => _searchQuery = v),
+            filters: const <String>['All', 'Submitted', 'Draft', 'Cancelled'],
+            selectedFilter: _statusFilter,
+            onFilterChanged: (String f) => setState(() => _statusFilter = f),
+            resultCount: filteredRecords.length,
+            totalCount: _records.length,
           ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : RefreshIndicator(
                     onRefresh: _loadRecords,
-                    child: _records.isEmpty
+                    child: filteredRecords.isEmpty
                         ? ListView(
                             padding: const EdgeInsets.all(24),
                             children: <Widget>[
                               Center(
                                 child: Text(
-                                  'No records found for "$_selectedDocType".',
+                                  'No matching records found for "$_selectedDocType".',
                                 ),
                               ),
                             ],
                           )
                         : ListView.builder(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            itemCount: _records.length,
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
+                            itemCount: filteredRecords.length,
                             itemBuilder: (BuildContext context, int i) {
-                              final Map<String, dynamic> row = _records[i];
+                              final Map<String, dynamic> row =
+                                  filteredRecords[i];
                               final String docName = (row['name'] ?? '')
                                   .toString();
                               return Card(
