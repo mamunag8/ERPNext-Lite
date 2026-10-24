@@ -814,6 +814,9 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
       if (_statusFilter == 'Closed' && status != 'Closed') {
         return false;
       }
+      if (_statusFilter == 'Cancelled' && status != 'Cancelled') {
+        return false;
+      }
       if (_statusFilter == 'High' && (status != 'Open' || priority != 'High')) {
         return false;
       }
@@ -831,7 +834,20 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
           hintText: 'Search ToDos (description, priority, due date, linked record)...',
           query: _todoQuery,
           onQueryChanged: (String v) => setState(() => _todoQuery = v),
-          filters: const <String>['All', 'Open', 'High', 'Due Today', 'Closed'],
+          onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+            context,
+            doctype: 'ToDo',
+            initialQuery: _todoQuery,
+            onChanged: _loadTodosAndActivity,
+          ),
+          filters: const <String>[
+            'All',
+            'Open',
+            'High',
+            'Due Today',
+            'Closed',
+            'Cancelled',
+          ],
           selectedFilter: _statusFilter,
           onFilterChanged: (String f) => setState(() => _statusFilter = f),
           resultCount: filteredTodos.length,
@@ -1214,6 +1230,43 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: <Widget>[
+                                  if (status != 'Cancelled')
+                                    TextButton.icon(
+                                      style: TextButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        foregroundColor: Colors.orange.shade800,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.cancel_outlined,
+                                        size: 16,
+                                      ),
+                                      label: const Text(
+                                        'Cancel',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                      onPressed: () async {
+                                        final ScaffoldMessengerState messenger =
+                                            ScaffoldMessenger.of(context);
+                                        try {
+                                          await ErpApiClient.instance.cancelDoc(
+                                            'ToDo',
+                                            name,
+                                            isStatusOnly: true,
+                                          );
+                                          await _loadTodosAndActivity();
+                                        } catch (e) {
+                                          messenger.showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                ErpApiClient.formatErrorMessage(
+                                                  e,
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                    ),
                                   TextButton.icon(
                                     style: TextButton.styleFrom(
                                       visualDensity: VisualDensity.compact,
@@ -1392,6 +1445,12 @@ class _QuickTodoScreenState extends State<QuickTodoScreen>
           hintText: 'Search Activity Notes (content, linked ToDo/Lead/Deal, author)...',
           query: _activityQuery,
           onQueryChanged: (String v) => setState(() => _activityQuery = v),
+          onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+            context,
+            doctype: 'Comment',
+            initialQuery: _activityQuery,
+            onChanged: _loadTodosAndActivity,
+          ),
           filters: const <String>[
             'All',
             'ToDo',

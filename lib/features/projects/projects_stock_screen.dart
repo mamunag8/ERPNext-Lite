@@ -1260,6 +1260,12 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                   'Search Projects by Name, ID, Dept, Cost Center, Customer...',
               query: _projectQuery,
               onQueryChanged: (String v) => setState(() => _projectQuery = v),
+              onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+                context,
+                doctype: 'Project',
+                initialQuery: _projectQuery,
+                onSaved: _loadData,
+              ),
               filters: const <String>['All', 'Open', 'Completed', 'Cancelled'],
               selectedFilter: _projectStatusFilter,
               onFilterSelected: (String f) =>
@@ -1558,7 +1564,117 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                               );
                             },
                             icon: const Icon(Icons.tune_rounded, size: 16),
-                            label: const Text('All ERP Fields'),
+                            label: const Text('All Fields'),
+                          ),
+                          if (status != 'Cancelled')
+                            IconButton(
+                              tooltip: 'Cancel Project',
+                              icon: const Icon(
+                                Icons.cancel_outlined,
+                                color: Colors.orange,
+                              ),
+                              onPressed: saving
+                                  ? null
+                                  : () async {
+                                      setModalState(() => saving = true);
+                                      try {
+                                        await ErpApiClient.instance.cancelDoc(
+                                          'Project',
+                                          docName,
+                                          isStatusOnly: true,
+                                        );
+                                        if (ctx.mounted) {
+                                          Navigator.pop(ctx);
+                                        }
+                                        await _loadData();
+                                      } catch (e) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(
+                                            this.context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                ErpApiClient.formatErrorMessage(
+                                                  e,
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      } finally {
+                                        if (ctx.mounted) {
+                                          setModalState(() => saving = false);
+                                        }
+                                      }
+                                    },
+                            ),
+                          IconButton(
+                            tooltip: 'Delete Project',
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: Colors.red,
+                            ),
+                            onPressed: saving
+                                ? null
+                                : () async {
+                                    final bool?
+                                    confirm = await showDialog<bool>(
+                                      context: ctx,
+                                      builder: (BuildContext dCtx) => AlertDialog(
+                                        title: const Text('Delete Project?'),
+                                        content: Text(
+                                          'Are you sure you want to delete $docName?',
+                                        ),
+                                        actions: <Widget>[
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(dCtx, false),
+                                            child: const Text('Keep'),
+                                          ),
+                                          FilledButton(
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: Colors.red,
+                                            ),
+                                            onPressed: () =>
+                                                Navigator.pop(dCtx, true),
+                                            child: const Text('Delete'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm != true) {
+                                      return;
+                                    }
+                                    setModalState(() => saving = true);
+                                    try {
+                                      await ErpApiClient.instance.deleteDoc(
+                                        'Project',
+                                        docName,
+                                      );
+                                      if (ctx.mounted) {
+                                        Navigator.pop(ctx);
+                                      }
+                                      await _loadData();
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(
+                                          this.context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              ErpApiClient.formatErrorMessage(
+                                                e,
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    } finally {
+                                      if (ctx.mounted) {
+                                        setModalState(() => saving = false);
+                                      }
+                                    }
+                                  },
                           ),
                           IconButton(
                             tooltip: 'Download Project PDF',
@@ -2180,12 +2296,19 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
               hintText: 'Search Tasks by Subject, ID, Project, Department...',
               query: _taskQuery,
               onQueryChanged: (String v) => setState(() => _taskQuery = v),
+              onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+                context,
+                doctype: 'Task',
+                initialQuery: _taskQuery,
+                onSaved: _loadData,
+              ),
               filters: const <String>[
                 'All',
                 'Open',
                 'Working',
                 'Pending Review',
                 'Completed',
+                'Cancelled',
                 'High',
               ],
               selectedFilter: _taskStatusFilter,
@@ -2241,6 +2364,16 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                           );
                           return;
                         }
+                        if (action == '__DELETE__') {
+                          try {
+                            await ErpApiClient.instance.deleteDoc(
+                              'Task',
+                              taskName,
+                            );
+                            await _loadData();
+                          } catch (_) {}
+                          return;
+                        }
                         try {
                           await ErpApiClient.instance.updateDoc(
                             'Task',
@@ -2275,6 +2408,18 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
                             PopupMenuItem<String>(
                               value: 'Completed',
                               child: Text('Mark Completed'),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'Cancelled',
+                              child: Text('Cancel Task'),
+                            ),
+                            PopupMenuDivider(),
+                            PopupMenuItem<String>(
+                              value: '__DELETE__',
+                              child: Text(
+                                'Delete Task',
+                                style: TextStyle(color: Colors.red),
+                              ),
                             ),
                           ],
                     ),
@@ -2312,7 +2457,13 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
               hintText: 'Search Timesheets by Employee, ID, Date...',
               query: _timesheetQuery,
               onQueryChanged: (String v) => setState(() => _timesheetQuery = v),
-              filters: const <String>['All', 'Draft', 'Submitted'],
+              onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+                context,
+                doctype: 'Timesheet',
+                initialQuery: _timesheetQuery,
+                onSaved: _loadData,
+              ),
+              filters: const <String>['All', 'Draft', 'Submitted', 'Cancelled'],
               selectedFilter: _timesheetStatusFilter,
               onFilterSelected: (String f) =>
                   setState(() => _timesheetStatusFilter = f),
@@ -2402,6 +2553,12 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
               hintText: 'Search Material Requests & Stock Entries by ID, Warehouse, Project...',
               query: _mrStockQuery,
               onQueryChanged: (String v) => setState(() => _mrStockQuery = v),
+              onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+                context,
+                doctype: 'Material Request',
+                initialQuery: _mrStockQuery,
+                onSaved: _loadData,
+              ),
               filters: const <String>[
                 'All',
                 'Purchase',
@@ -2537,7 +2694,19 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
               query: _deliveryNoteQuery,
               onQueryChanged: (String v) =>
                   setState(() => _deliveryNoteQuery = v),
-              filters: const <String>['All', 'Draft', 'To Bill', 'Completed'],
+              onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+                context,
+                doctype: 'Delivery Note',
+                initialQuery: _deliveryNoteQuery,
+                onSaved: _loadData,
+              ),
+              filters: const <String>[
+                'All',
+                'Draft',
+                'To Bill',
+                'Completed',
+                'Cancelled',
+              ],
               selectedFilter: _deliveryNoteStatusFilter,
               onFilterSelected: (String f) =>
                   setState(() => _deliveryNoteStatusFilter = f),
@@ -2637,6 +2806,12 @@ class _ProjectsAndStockScreenState extends State<ProjectsAndStockScreen>
               query: _stockBalanceQuery,
               onQueryChanged: (String v) =>
                   setState(() => _stockBalanceQuery = v),
+              onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+                context,
+                doctype: 'Item',
+                initialQuery: _stockBalanceQuery,
+                onSaved: _loadData,
+              ),
               filters: const <String>['All', 'In Stock', 'Out of Stock'],
               selectedFilter: _stockBalanceFilter,
               onFilterSelected: (String f) =>

@@ -401,6 +401,175 @@ class ErpDocSheet {
       },
     );
   }
+
+  /// Opens a Server-Side Search sheet for [doctype] (triggered from `ErpSearchBar.onServerSearch`)
+  /// so the user can find any older ERPNext record on the server and immediately
+  /// View, Edit, Submit, Cancel, Amend, or Delete it.
+  static Future<void> showServerSearchDialog(
+    BuildContext context, {
+    required String doctype,
+    String initialQuery = '',
+    VoidCallback? onSaved,
+    VoidCallback? onChanged,
+  }) async {
+    final VoidCallback? effectiveOnSaved = onSaved ?? onChanged;
+    final TextEditingController searchCtrl = TextEditingController(
+      text: initialQuery,
+    );
+    List<Map<String, dynamic>> results = await ErpApiClient.instance
+        .searchDocTypeRecords(doctype, initialQuery);
+    if (!context.mounted) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext ctx) {
+        bool loading = false;
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            Future<void> runSearch(String q) async {
+              setModalState(() => loading = true);
+              try {
+                final List<Map<String, dynamic>> next = await ErpApiClient
+                    .instance
+                    .searchDocTypeRecords(doctype, q);
+                setModalState(() {
+                  results = next;
+                  loading = false;
+                });
+              } catch (_) {
+                setModalState(() => loading = false);
+              }
+            }
+
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.72,
+              maxChildSize: 0.92,
+              minChildSize: 0.45,
+              builder: (BuildContext context, ScrollController scrollCtrl) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          Text(
+                            'Server Search: $doctype',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              ErpDocSheet.showCreate(
+                                context,
+                                doctype: doctype,
+                                onCreated: effectiveOnSaved,
+                              );
+                            },
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: Text('New $doctype'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: searchCtrl,
+                        autofocus: initialQuery.isEmpty,
+                        onSubmitted: runSearch,
+                        decoration: InputDecoration(
+                          hintText: 'Type ID or keyword on ERPNext server...',
+                          prefixIcon: const Icon(Icons.cloud_sync_rounded),
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                          suffixIcon: IconButton(
+                            tooltip: 'Search Server',
+                            icon: loading
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.search_rounded),
+                            onPressed: () => runSearch(searchCtrl.text.trim()),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: results.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'No matching server records found.',
+                                ),
+                              )
+                            : ListView.separated(
+                                controller: scrollCtrl,
+                                itemCount: results.length,
+                                separatorBuilder: (_, _) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (BuildContext context, int i) {
+                                  final Map<String, dynamic> r = results[i];
+                                  final String name = (r['name'] ?? '')
+                                      .toString();
+                                  final String mod = (r['modified'] ?? '')
+                                      .toString();
+                                  return ListTile(
+                                    dense: true,
+                                    leading: const Icon(
+                                      Icons.description_outlined,
+                                      size: 20,
+                                    ),
+                                    title: Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    subtitle: mod.isNotEmpty
+                                        ? Text(
+                                            mod,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                            ),
+                                          )
+                                        : null,
+                                    trailing: const Icon(
+                                      Icons.edit_note_rounded,
+                                    ),
+                                    onTap: () {
+                                      Navigator.pop(ctx);
+                                      ErpDocSheet.showViewAndEdit(
+                                        context,
+                                        doctype: doctype,
+                                        docname: name,
+                                        onSaved: effectiveOnSaved,
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _ErpDocEditModal extends StatefulWidget {
@@ -451,9 +620,48 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
   }
 
   bool get _canDelete {
-    final int delPerm = (widget.permissions['delete'] as num?)?.toInt() ?? 0;
+    final int delPerm = (widget.permissions['delete'] as num?)?.toInt() ?? 1;
     final int docstatus = (_doc['docstatus'] as num?)?.toInt() ?? 0;
-    return delPerm == 1 && docstatus == 0;
+    return delPerm == 1 && (docstatus == 0 || docstatus == 2);
+  }
+
+  bool get _canCancelAndDelete {
+    final int delPerm = (widget.permissions['delete'] as num?)?.toInt() ?? 1;
+    final int docstatus = (_doc['docstatus'] as num?)?.toInt() ?? 0;
+    return _canCancel && delPerm == 1 && docstatus == 1;
+  }
+
+  bool get _canMarkStatusCancelled {
+    final int docstatus = (_doc['docstatus'] as num?)?.toInt() ?? 0;
+    if (!_canWrite || docstatus != 0) {
+      return false;
+    }
+    final String currentStatus = (_doc['status'] ?? '').toString().trim();
+    if (currentStatus.toLowerCase() == 'cancelled' ||
+        currentStatus.toLowerCase() == 'lost') {
+      return false;
+    }
+    for (final Map<String, dynamic> mf in widget.metaFields) {
+      if (mf['fieldname'] == 'status') {
+        final String opts = (mf['options'] ?? '').toString().toLowerCase();
+        if (opts.contains('cancelled')) {
+          return true;
+        }
+      }
+    }
+    return const <String>{
+      'Project',
+      'Task',
+      'ToDo',
+      'CRM Task',
+      'Leave Application',
+      'Shift Request',
+    }.contains(widget.doctype);
+  }
+
+  bool get _canAmend {
+    final int docstatus = (_doc['docstatus'] as num?)?.toInt() ?? 0;
+    return _canCreate && docstatus == 2;
   }
 
   bool get _canCreate {
@@ -644,13 +852,40 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
   }
 
   Future<void> _changeDocStatus(int targetStatus) async {
+    if (targetStatus == 2) {
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext dCtx) => AlertDialog(
+          title: Text('Cancel ${widget.doctype}?'),
+          content: Text('Are you sure you want to cancel ${widget.docname}?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dCtx, false),
+              child: const Text('Keep Active'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+              onPressed: () => Navigator.pop(dCtx, true),
+              child: const Text('Cancel Document'),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) {
+        return;
+      }
+    }
     setState(() => _saving = true);
     try {
-      await ErpApiClient.instance.updateDoc(
-        widget.doctype,
-        widget.docname,
-        <String, dynamic>{'docstatus': targetStatus},
-      );
+      if (targetStatus == 1) {
+        await ErpApiClient.instance.submitDoc(
+          widget.doctype,
+          widget.docname,
+          doc: _doc,
+        );
+      } else {
+        await ErpApiClient.instance.cancelDoc(widget.doctype, widget.docname);
+      }
       widget.onSaved();
       if (mounted) {
         Navigator.pop(context);
@@ -678,23 +913,21 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
     }
   }
 
-  Future<void> _deleteDocument() async {
+  Future<void> _markStatusCancelled() async {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext dCtx) => AlertDialog(
-        title: Text('Delete ${widget.doctype}?'),
-        content: Text(
-          'Are you sure you want to delete ${widget.docname}? This cannot be undone.',
-        ),
+        title: Text('Cancel ${widget.doctype}?'),
+        content: Text('Set status of ${widget.docname} to Cancelled?'),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dCtx, false),
-            child: const Text('Cancel'),
+            child: const Text('Back'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
             onPressed: () => Navigator.pop(dCtx, true),
-            child: const Text('Delete'),
+            child: const Text('Mark Cancelled'),
           ),
         ],
       ),
@@ -704,6 +937,104 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
     }
     setState(() => _saving = true);
     try {
+      await ErpApiClient.instance.cancelDoc(
+        widget.doctype,
+        widget.docname,
+        isStatusOnly: true,
+      );
+      widget.onSaved();
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.orange.shade800,
+            content: Text('${widget.doctype} ${widget.docname} Cancelled.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErpApiClient.formatErrorMessage(e))),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _amendDocument() async {
+    setState(() => _saving = true);
+    try {
+      final Map<String, dynamic> amended = await ErpApiClient.instance.amendDoc(
+        widget.doctype,
+        _doc,
+      );
+      final String newName = (amended['name'] ?? '').toString();
+      widget.onSaved();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.teal.shade700,
+            content: Text(
+              'Amended Draft ${newName.isNotEmpty ? newName : ''} created from ${widget.docname}!',
+            ),
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ErpApiClient.formatErrorMessage(e))),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _deleteDocument() async {
+    final int docstatus = (_doc['docstatus'] as num?)?.toInt() ?? 0;
+    final bool needsCancelFirst = docstatus == 1 && _canCancelAndDelete;
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dCtx) => AlertDialog(
+        title: Text(
+          needsCancelFirst
+              ? 'Cancel & Delete ${widget.doctype}?'
+              : 'Delete ${widget.doctype}?',
+        ),
+        content: Text(
+          needsCancelFirst
+              ? '${widget.docname} is currently Submitted. Do you want to Cancel it first and then permanently Delete it?'
+              : 'Are you sure you want to delete ${widget.docname}? This cannot be undone.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: Text(needsCancelFirst ? 'Cancel & Delete' : 'Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) {
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      if (needsCancelFirst) {
+        await ErpApiClient.instance.cancelDoc(widget.doctype, widget.docname);
+      }
       await ErpApiClient.instance.deleteDoc(widget.doctype, widget.docname);
       widget.onSaved();
       if (mounted) {
@@ -1386,9 +1717,11 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                       docname: widget.docname,
                     ),
                   ),
-                  if (_canDelete)
+                  if (_canDelete || _canCancelAndDelete)
                     IconButton(
-                      tooltip: 'Delete Record',
+                      tooltip: _canCancelAndDelete
+                          ? 'Cancel & Delete Record'
+                          : 'Delete Record',
                       icon: const Icon(
                         Icons.delete_outline_rounded,
                         color: Colors.red,
@@ -1398,8 +1731,11 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                 ],
               ),
               const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
                 children: <Widget>[
                   TextButton.icon(
                     onPressed: () {
@@ -1418,18 +1754,43 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),
-                  if (_canSubmit)
-                    FilledButton.tonalIcon(
-                      onPressed: _saving ? null : () => _changeDocStatus(1),
-                      icon: const Icon(Icons.check_circle_outline, size: 16),
-                      label: const Text('Submit'),
-                    )
-                  else if (_canCancel)
-                    OutlinedButton.icon(
-                      onPressed: _saving ? null : () => _changeDocStatus(2),
-                      icon: const Icon(Icons.cancel_outlined, size: 16),
-                      label: const Text('Cancel Doc'),
-                    ),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: <Widget>[
+                      if (_canSubmit)
+                        FilledButton.tonalIcon(
+                          onPressed: _saving ? null : () => _changeDocStatus(1),
+                          icon: const Icon(
+                            Icons.check_circle_outline,
+                            size: 16,
+                          ),
+                          label: const Text('Submit'),
+                        ),
+                      if (_canCancel)
+                        OutlinedButton.icon(
+                          onPressed: _saving ? null : () => _changeDocStatus(2),
+                          icon: const Icon(Icons.cancel_outlined, size: 16),
+                          label: const Text('Cancel Doc'),
+                        ),
+                      if (!_canCancel && _canMarkStatusCancelled)
+                        OutlinedButton.icon(
+                          onPressed: _saving ? null : _markStatusCancelled,
+                          icon: const Icon(
+                            Icons.cancel_outlined,
+                            size: 16,
+                            color: Colors.orange,
+                          ),
+                          label: const Text('Cancel'),
+                        ),
+                      if (_canAmend)
+                        FilledButton.tonalIcon(
+                          onPressed: _saving ? null : _amendDocument,
+                          icon: const Icon(Icons.copy_all_rounded, size: 16),
+                          label: const Text('Amend'),
+                        ),
+                    ],
+                  ),
                 ],
               ),
               const Divider(height: 12),
@@ -1459,6 +1820,15 @@ class _ErpDocEditModalState extends State<_ErpDocEditModal> {
                           )
                         : const Icon(Icons.save_rounded),
                     label: Text('Save ${widget.doctype} Changes'),
+                  ),
+                )
+              else if (_canAmend)
+                SafeArea(
+                  top: false,
+                  child: FilledButton.icon(
+                    onPressed: _saving ? null : _amendDocument,
+                    icon: const Icon(Icons.copy_all_rounded),
+                    label: Text('Amend Cancelled ${widget.doctype}'),
                   ),
                 ),
             ],

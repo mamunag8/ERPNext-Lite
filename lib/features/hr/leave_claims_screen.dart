@@ -1652,7 +1652,19 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
                 'Search Leaves & Allocations (employee, leave type, status)...',
             query: _leaveQuery,
             onQueryChanged: (String v) => setState(() => _leaveQuery = v),
-            filters: const <String>['All', 'Open', 'Approved', 'Rejected'],
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: 'Leave Application',
+              initialQuery: _leaveQuery,
+              onSaved: _loadAllData,
+            ),
+            filters: const <String>[
+              'All',
+              'Open',
+              'Approved',
+              'Rejected',
+              'Cancelled',
+            ],
             selectedFilter: _leaveStatusFilter,
             onFilterChanged: (String f) =>
                 setState(() => _leaveStatusFilter = f),
@@ -1904,7 +1916,19 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
             hintText: 'Search Expense Claims (ID, employee, project, date, status)...',
             query: _claimQuery,
             onQueryChanged: (String v) => setState(() => _claimQuery = v),
-            filters: const <String>['All', 'Draft', 'Approved', 'Rejected'],
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: 'Expense Claim',
+              initialQuery: _claimQuery,
+              onSaved: _loadAllData,
+            ),
+            filters: const <String>[
+              'All',
+              'Draft',
+              'Approved',
+              'Rejected',
+              'Cancelled',
+            ],
             selectedFilter: _claimStatusFilter,
             onFilterChanged: (String f) =>
                 setState(() => _claimStatusFilter = f),
@@ -2081,12 +2105,19 @@ class _LeaveAndClaimsScreenState extends State<LeaveAndClaimsScreen>
             hintText: 'Search Employee Advances (employee, purpose, project, status)...',
             query: _advanceQuery,
             onQueryChanged: (String v) => setState(() => _advanceQuery = v),
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: 'Employee Advance',
+              initialQuery: _advanceQuery,
+              onSaved: _loadAllData,
+            ),
             filters: const <String>[
               'All',
               'Draft',
               'Paid',
               'Claimed',
               'Unpaid',
+              'Cancelled',
             ],
             selectedFilter: _advanceStatusFilter,
             onFilterChanged: (String f) =>

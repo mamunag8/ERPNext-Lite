@@ -1727,10 +1727,10 @@ class _PayrollScreenState extends State<PayrollScreen>
                     onPressed: () async {
                       Navigator.pop(ctx);
                       try {
-                        await ErpApiClient.instance.updateDoc(
+                        await ErpApiClient.instance.submitDoc(
                           'Salary Slip',
                           name,
-                          <String, dynamic>{'docstatus': 1},
+                          doc: fullSlip,
                         );
                         if (mounted) {
                           ScaffoldMessenger.of(this.context).showSnackBar(
@@ -1750,6 +1750,72 @@ class _PayrollScreenState extends State<PayrollScreen>
                     },
                     icon: const Icon(Icons.check_circle_outline_rounded),
                     label: const Text('Submit Draft Salary Slip'),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (docstatus == 1) ...<Widget>[
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.orange.shade800,
+                    ),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      try {
+                        await ErpApiClient.instance.cancelDoc(
+                          'Salary Slip',
+                          name,
+                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(content: Text('Cancelled $name!')),
+                          );
+                        }
+                        await _loadAllPayrollData();
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(
+                              content: Text(ErpApiClient.formatErrorMessage(e)),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: const Text('Cancel Salary Slip'),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                if (docstatus == 0 || docstatus == 2) ...<Widget>[
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red.shade700,
+                    ),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      try {
+                        await ErpApiClient.instance.deleteDoc(
+                          'Salary Slip',
+                          name,
+                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(content: Text('Deleted $name!')),
+                          );
+                        }
+                        await _loadAllPayrollData();
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(
+                              content: Text(ErpApiClient.formatErrorMessage(e)),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    label: const Text('Delete Salary Slip'),
                   ),
                   const SizedBox(height: 10),
                 ],
@@ -1850,7 +1916,13 @@ class _PayrollScreenState extends State<PayrollScreen>
             hintText: 'Search Salary Slips (ID, employee, department, period, net pay)...',
             query: _slipQuery,
             onQueryChanged: (String v) => setState(() => _slipQuery = v),
-            filters: const <String>['All', 'Submitted', 'Draft'],
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: 'Salary Slip',
+              initialQuery: _slipQuery,
+              onChanged: _loadAllPayrollData,
+            ),
+            filters: const <String>['All', 'Submitted', 'Draft', 'Cancelled'],
             selectedFilter: _slipStatusFilter,
             onFilterChanged: (String f) =>
                 setState(() => _slipStatusFilter = f),
@@ -2087,7 +2159,13 @@ class _PayrollScreenState extends State<PayrollScreen>
             query: _payrollEntryQuery,
             onQueryChanged: (String v) =>
                 setState(() => _payrollEntryQuery = v),
-            filters: const <String>['All', 'Submitted', 'Draft'],
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: 'Payroll Entry',
+              initialQuery: _payrollEntryQuery,
+              onChanged: _loadAllPayrollData,
+            ),
+            filters: const <String>['All', 'Submitted', 'Draft', 'Cancelled'],
             selectedFilter: _payrollEntryStatusFilter,
             onFilterChanged: (String f) =>
                 setState(() => _payrollEntryStatusFilter = f),
@@ -2282,7 +2360,13 @@ class _PayrollScreenState extends State<PayrollScreen>
             hintText: 'Search Salary Structures & Assignments (employee, structure, base pay)...',
             query: _structureQuery,
             onQueryChanged: (String v) => setState(() => _structureQuery = v),
-            filters: const <String>['All', 'Submitted', 'Draft'],
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: 'Salary Structure Assignment',
+              initialQuery: _structureQuery,
+              onChanged: _loadAllPayrollData,
+            ),
+            filters: const <String>['All', 'Submitted', 'Draft', 'Cancelled'],
             selectedFilter: _structureStatusFilter,
             onFilterChanged: (String f) =>
                 setState(() => _structureStatusFilter = f),
@@ -2482,6 +2566,12 @@ class _PayrollScreenState extends State<PayrollScreen>
             query: _additionalSalaryQuery,
             onQueryChanged: (String v) =>
                 setState(() => _additionalSalaryQuery = v),
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: 'Additional Salary',
+              initialQuery: _additionalSalaryQuery,
+              onChanged: _loadAllPayrollData,
+            ),
             filters: const <String>['All', 'Earning', 'Deduction'],
             selectedFilter: _additionalSalaryTypeFilter,
             onFilterChanged: (String f) =>

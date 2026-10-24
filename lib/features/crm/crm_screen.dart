@@ -770,6 +770,80 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                             ),
                           ),
                         ),
+                        IconButton(
+                          tooltip: isLead
+                              ? 'Mark Junk / Cancelled'
+                              : 'Mark Lost / Cancelled',
+                          icon: const Icon(
+                            Icons.cancel_outlined,
+                            color: Colors.orange,
+                          ),
+                          onPressed: () async {
+                            final String cancelStage = isLead ? 'Junk' : 'Lost';
+                            setModalState(() => currentStage = cancelStage);
+                            await _updateRecordStatus(
+                              doctype: doctype,
+                              name: docName,
+                              newStatus: cancelStage,
+                            );
+                          },
+                        ),
+                        IconButton(
+                          tooltip: 'Delete ${isLead ? 'Lead' : 'Deal'}',
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Colors.red,
+                          ),
+                          onPressed: () async {
+                            final bool? confirm = await showDialog<bool>(
+                              context: ctx,
+                              builder: (BuildContext dCtx) => AlertDialog(
+                                title: Text(
+                                  'Delete ${isLead ? 'Lead' : 'Deal'}?',
+                                ),
+                                content: Text(
+                                  'Are you sure you want to delete $docName?',
+                                ),
+                                actions: <Widget>[
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(dCtx, false),
+                                    child: const Text('Keep'),
+                                  ),
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                    ),
+                                    onPressed: () => Navigator.pop(dCtx, true),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm != true) {
+                              return;
+                            }
+                            if (ctx.mounted) {
+                              Navigator.pop(ctx);
+                            }
+                            try {
+                              await ErpApiClient.instance.deleteDoc(
+                                doctype,
+                                docName,
+                              );
+                              await _loadCrmData();
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      ErpApiClient.formatErrorMessage(e),
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -1700,6 +1774,12 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
             hintText: 'Search Lead by name, organization, mobile, or email...',
             query: _leadQuery,
             onQueryChanged: (String v) => setState(() => _leadQuery = v),
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: _usingFcrm ? 'CRM Lead' : 'Lead',
+              initialQuery: _leadQuery,
+              onSaved: _loadCrmData,
+            ),
             filters: <String>['All', ..._leadPipelineStages],
             selectedFilter: _selectedLeadStage,
             onFilterChanged: (String f) =>
@@ -1955,6 +2035,12 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                 'Search Deal / Opportunity by organization, owner, or ID...',
             query: _dealQuery,
             onQueryChanged: (String v) => setState(() => _dealQuery = v),
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: _usingFcrm ? 'CRM Deal' : 'Opportunity',
+              initialQuery: _dealQuery,
+              onSaved: _loadCrmData,
+            ),
             filters: <String>['All', ..._dealPipelineStages],
             selectedFilter: _selectedDealStage,
             onFilterChanged: (String f) =>
@@ -2230,6 +2316,12 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
                 'Search CRM Tasks & ToDos (title, assignee, due date, lead)...',
             query: _crmTaskQuery,
             onQueryChanged: (String v) => setState(() => _crmTaskQuery = v),
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: 'ToDo',
+              initialQuery: _crmTaskQuery,
+              onSaved: _loadCrmData,
+            ),
             filters: const <String>['All', 'Open', 'Done', 'Closed', 'High'],
             selectedFilter: _crmTaskStatusFilter,
             onFilterChanged: (String f) =>
@@ -2418,6 +2510,12 @@ class _CrmAndTasksScreenState extends State<CrmAndTasksScreen>
             hintText: 'Search CRM Notes (title, content, linked Lead/Deal, author)...',
             query: _crmNoteQuery,
             onQueryChanged: (String v) => setState(() => _crmNoteQuery = v),
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: _usingFcrm ? 'FCRM Note' : 'Note',
+              initialQuery: _crmNoteQuery,
+              onSaved: _loadCrmData,
+            ),
             filters: const <String>[
               'All',
               'Lead',

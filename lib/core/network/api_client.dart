@@ -3367,9 +3367,146 @@ class ErpApiClient extends ChangeNotifier {
           .removeWhere((Map<String, dynamic> e) => e['name'] == name);
       return;
     }
-    await _dio.delete<dynamic>(
-      '/api/resource/${Uri.encodeComponent(doctype)}/${Uri.encodeComponent(name)}',
-    );
+    try {
+      await _dio.delete<dynamic>(
+        '/api/resource/${Uri.encodeComponent(doctype)}/${Uri.encodeComponent(name)}',
+      );
+    } catch (_) {
+      await _dio.post<dynamic>(
+        '/api/method/frappe.client.delete_doc',
+        data: <String, dynamic>{'doctype': doctype, 'name': name},
+      );
+    }
+  }
+
+  /// Submits a Draft (`docstatus == 0`) document using ERPNext's official
+  /// `frappe.client.submit` RPC endpoint with fallback to REST `PUT`.
+  Future<Map<String, dynamic>> submitDoc(
+    String doctype,
+    String name, {
+    Map<String, dynamic>? doc,
+  }) async {
+    if (_isDemoSession) {
+      return updateDoc(doctype, name, <String, dynamic>{
+        ...?doc,
+        'docstatus': 1,
+        'status': 'Submitted',
+      });
+    }
+    try {
+      final Map<String, dynamic> fullDoc = doc != null && doc.isNotEmpty
+          ? Map<String, dynamic>.from(doc)
+          : await getDoc(doctype, name);
+      fullDoc['doctype'] = doctype;
+      fullDoc['name'] = name;
+      final Response<dynamic> res = await _dio.post<dynamic>(
+        '/api/method/frappe.client.submit',
+        data: <String, dynamic>{'doc': jsonEncode(fullDoc)},
+      );
+      final Map<String, dynamic> body =
+          (res.data as Map<String, dynamic>?) ?? <String, dynamic>{};
+      if (body['message'] is Map) {
+        return Map<String, dynamic>.from(
+          body['message'] as Map<dynamic, dynamic>,
+        );
+      }
+      return await getDoc(doctype, name);
+    } catch (_) {
+      return updateDoc(doctype, name, <String, dynamic>{'docstatus': 1});
+    }
+  }
+
+  /// Cancels a Submitted (`docstatus == 1`) document using ERPNext's official
+  /// `frappe.client.cancel` RPC endpoint, or marks a non-submittable document
+  /// as `status = 'Cancelled'`.
+  Future<Map<String, dynamic>> cancelDoc(
+    String doctype,
+    String name, {
+    bool isStatusOnly = false,
+  }) async {
+    if (_isDemoSession) {
+      return updateDoc(doctype, name, <String, dynamic>{
+        if (!isStatusOnly) 'docstatus': 2,
+        'status': 'Cancelled',
+      });
+    }
+    if (isStatusOnly) {
+      return updateDoc(doctype, name, <String, dynamic>{'status': 'Cancelled'});
+    }
+    try {
+      final Response<dynamic> res = await _dio.post<dynamic>(
+        '/api/method/frappe.client.cancel',
+        data: <String, dynamic>{'doctype': doctype, 'name': name},
+      );
+      final Map<String, dynamic> body =
+          (res.data as Map<String, dynamic>?) ?? <String, dynamic>{};
+      if (body['message'] is Map) {
+        return Map<String, dynamic>.from(
+          body['message'] as Map<dynamic, dynamic>,
+        );
+      }
+      return await getDoc(doctype, name);
+    } catch (_) {
+      try {
+        return await updateDoc(doctype, name, <String, dynamic>{
+          'docstatus': 2,
+        });
+      } catch (_) {
+        return updateDoc(doctype, name, <String, dynamic>{
+          'status': 'Cancelled',
+        });
+      }
+    }
+  }
+
+  /// Creates an Amended Draft (`docstatus == 0`) from a Cancelled (`docstatus == 2`)
+  /// document with `amended_from` linked to the original document name.
+  Future<Map<String, dynamic>> amendDoc(
+    String doctype,
+    Map<String, dynamic> cancelledDoc,
+  ) async {
+    final String originalName = (cancelledDoc['name'] ?? '').toString();
+    final Map<String, dynamic> payload = <String, dynamic>{};
+    const Set<String> systemKeys = <String>{
+      'name',
+      'creation',
+      'modified',
+      'modified_by',
+      'owner',
+      'docstatus',
+      'idx',
+      '_user_tags',
+      '_comments',
+      '_assign',
+      '_liked_by',
+    };
+    cancelledDoc.forEach((String k, dynamic v) {
+      if (systemKeys.contains(k) || v == null) {
+        return;
+      }
+      if (v is List) {
+        payload[k] = v.map((dynamic row) {
+          if (row is Map) {
+            final Map<String, dynamic> cleanRow = Map<String, dynamic>.from(
+              row,
+            );
+            for (final String sk in systemKeys) {
+              cleanRow.remove(sk);
+            }
+            cleanRow.remove('parent');
+            return cleanRow;
+          }
+          return row;
+        }).toList();
+      } else {
+        payload[k] = v;
+      }
+    });
+    if (originalName.isNotEmpty) {
+      payload['amended_from'] = originalName;
+    }
+    payload['docstatus'] = 0;
+    return createDoc(doctype, payload);
   }
 
   Future<dynamic> callMethod(

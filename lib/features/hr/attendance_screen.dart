@@ -931,6 +931,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               'Search Check-In / Out Logs (employee, time, device, IN/OUT)...',
           query: _checkinQuery,
           onQueryChanged: (String v) => setState(() => _checkinQuery = v),
+          onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+            context,
+            doctype: 'Employee Checkin',
+            initialQuery: _checkinQuery,
+            onSaved: _loadAttendanceAndShifts,
+          ),
           filters: const <String>['All', 'IN', 'OUT'],
           selectedFilter: _checkinTypeFilter,
           onFilterChanged: (String f) => setState(() => _checkinTypeFilter = f),
@@ -1273,6 +1279,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               'Search Employees in Attendance Tool (name, ID, department)...',
           query: _toolEmployeeQuery,
           onQueryChanged: (String v) => setState(() => _toolEmployeeQuery = v),
+          onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+            context,
+            doctype: 'Employee',
+            initialQuery: _toolEmployeeQuery,
+            onSaved: _loadAttendanceAndShifts,
+          ),
           filters: const <String>['All', 'Unmarked', 'Marked'],
           selectedFilter: _toolEmployeeFilter,
           onFilterChanged: (String f) =>
@@ -1880,6 +1892,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               'Search Monthly Attendance (employee, date, shift, status)...',
           query: _sheetSearchQuery,
           onQueryChanged: (String v) => setState(() => _sheetSearchQuery = v),
+          onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+            context,
+            doctype: 'Attendance',
+            initialQuery: _sheetSearchQuery,
+            onSaved: _loadAttendanceAndShifts,
+          ),
           filters: const <String>[
             'All',
             'Present',
@@ -2295,7 +2313,19 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             hintText: 'Search Shift Requests (employee, shift type, dates, status)...',
             query: _shiftQuery,
             onQueryChanged: (String v) => setState(() => _shiftQuery = v),
-            filters: const <String>['All', 'Draft', 'Approved'],
+            onServerSearch: () => ErpDocSheet.showServerSearchDialog(
+              context,
+              doctype: 'Shift Request',
+              initialQuery: _shiftQuery,
+              onSaved: _loadAttendanceAndShifts,
+            ),
+            filters: const <String>[
+              'All',
+              'Draft',
+              'Approved',
+              'Rejected',
+              'Cancelled',
+            ],
             selectedFilter: _shiftStatusFilter,
             onFilterChanged: (String f) =>
                 setState(() => _shiftStatusFilter = f),
