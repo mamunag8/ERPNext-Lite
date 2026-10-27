@@ -549,22 +549,24 @@ class _ErpSearchBarState extends State<ErpSearchBar> {
               ),
               isDense: true,
               filled: true,
-              fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.35),
+              fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.42),
               contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
+                horizontal: 14,
+                vertical: 11,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: colors.outline.withValues(alpha: 0.3),
-                ),
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide(
-                  color: colors.outline.withValues(alpha: 0.25),
+                  color: colors.outlineVariant.withValues(alpha: 0.35),
                 ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: colors.primary, width: 1.3),
               ),
             ),
           ),

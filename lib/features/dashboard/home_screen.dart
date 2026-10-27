@@ -136,6 +136,8 @@ class _DashboardTab extends StatefulWidget {
 class _DashboardTabState extends State<_DashboardTab> {
   bool _syncing = false;
   bool _addingTodo = false;
+  bool _showAllHrTools = false;
+  bool _showAllShortcuts = false;
   final TextEditingController _quickTodoCtrl = TextEditingController();
 
   @override
@@ -932,8 +934,18 @@ class _DashboardTabState extends State<_DashboardTab> {
             .take(4)
             .toList();
 
+        final List<_DashboardQuickChipEntry> visibleHrTools = _showAllHrTools
+            ? sortedHrTools
+            : sortedHrTools.take(6).toList();
+
+        final List<_DashboardQuickChipEntry> visibleShortcuts =
+            _showAllShortcuts
+            ? sortedShortcuts
+            : sortedShortcuts.take(6).toList();
+
         return Scaffold(
           appBar: AppBar(
+            titleSpacing: 16,
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -946,14 +958,15 @@ class _DashboardTabState extends State<_DashboardTab> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
+                        horizontal: 7,
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
@@ -971,27 +984,32 @@ class _DashboardTabState extends State<_DashboardTab> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 1),
                 Text(
-                  session?.serverUrl ?? '',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  session?.serverUrl.replaceFirst(RegExp(r'^https?://'), '') ??
+                      '',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
             actions: <Widget>[
               IconButton(
                 tooltip: 'Quick ToDo & Activity Dock',
-                icon: const Icon(Icons.task_alt_rounded),
+                icon: const Icon(Icons.task_alt_rounded, size: 21),
                 onPressed: () => widget.onNavigateTab(1),
               ),
               IconButton(
                 tooltip: 'Sync Metadata & Permissions',
                 icon: _syncing || smart.isProbingPermissions
                     ? const SizedBox(
-                        width: 18,
-                        height: 18,
+                        width: 17,
+                        height: 17,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.sync_rounded),
+                    : const Icon(Icons.sync_rounded, size: 21),
                 onPressed: _syncing
                     ? null
                     : () async {
@@ -1015,24 +1033,35 @@ class _DashboardTabState extends State<_DashboardTab> {
               ),
               IconButton(
                 tooltip: 'Manual Logout',
-                icon: const Icon(Icons.logout_rounded),
+                icon: const Icon(Icons.logout_rounded, size: 20),
                 onPressed: _confirmLogout,
               ),
+              const SizedBox(width: 4),
             ],
           ),
           body: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
             children: <Widget>[
-              // Employee & Company Hero Card
+              // Unified Employee Hero & Quick Action Card
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: <Color>[colors.primary, colors.tertiary],
+                    colors: <Color>[
+                      colors.primary,
+                      Color.lerp(colors.primary, colors.tertiary, 0.45)!,
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: colors.primary.withValues(alpha: 0.16),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1040,15 +1069,15 @@ class _DashboardTabState extends State<_DashboardTab> {
                     Row(
                       children: <Widget>[
                         CircleAvatar(
-                          radius: 26,
-                          backgroundColor: Colors.white.withValues(alpha: 0.22),
+                          radius: 23,
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
                           child: const Icon(
                             Icons.person_rounded,
                             color: Colors.white,
-                            size: 30,
+                            size: 26,
                           ),
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1057,33 +1086,50 @@ class _DashboardTabState extends State<_DashboardTab> {
                                 session?.employeeName.isNotEmpty == true
                                     ? session!.employeeName
                                     : (session?.fullName ?? 'ERPNext User'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.2,
                                 ),
                               ),
+                              const SizedBox(height: 2),
                               Text(
                                 '${session?.designation.isNotEmpty == true ? '${session!.designation} • ' : ''}${session?.department.isNotEmpty == true ? session!.department : session?.email ?? ''}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.9),
                                   fontSize: 12,
                                 ),
                               ),
-                              if (session?.employeeId.isNotEmpty == true)
-                                Text(
-                                  'Employee ID: ${session!.employeeId} • Currency: ${session.currency}',
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                    fontSize: 11,
-                                  ),
-                                ),
                             ],
                           ),
                         ),
+                        if (session?.employeeId.isNotEmpty == true)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              session!.employeeId,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     Row(
                       children: <Widget>[
                         Expanded(
@@ -1091,15 +1137,23 @@ class _DashboardTabState extends State<_DashboardTab> {
                             style: FilledButton.styleFrom(
                               backgroundColor: Colors.white,
                               foregroundColor: colors.primary,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
                             ),
                             onPressed: () => widget.onNavigateTab(3),
                             icon: const Icon(
                               Icons.camera_front_rounded,
-                              size: 17,
+                              size: 16,
                             ),
                             label: const Text(
                               'Selfie Check-In',
-                              style: TextStyle(fontSize: 12),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ),
@@ -1111,6 +1165,11 @@ class _DashboardTabState extends State<_DashboardTab> {
                                 alpha: 0.18,
                               ),
                               foregroundColor: Colors.white,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
                             ),
                             onPressed: () {
                               if (topUsedModules.isNotEmpty &&
@@ -1133,7 +1192,7 @@ class _DashboardTabState extends State<_DashboardTab> {
                                           'mod_attendance'
                                   ? topUsedModules.first.icon
                                   : Icons.task_alt_rounded,
-                              size: 17,
+                              size: 16,
                             ),
                             label: Text(
                               topUsedModules.isNotEmpty &&
@@ -1143,7 +1202,10 @@ class _DashboardTabState extends State<_DashboardTab> {
                                   : 'Quick ToDo Dock',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
@@ -1154,218 +1216,164 @@ class _DashboardTabState extends State<_DashboardTab> {
               ),
               const SizedBox(height: 12),
 
-              // Smart Adaptive Dashboard Control Bar
+              // Compact Inline Quick ToDo Input Bar
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+                  horizontal: 10,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: colors.primaryContainer.withValues(alpha: 0.35),
+                  color: Theme.of(context).cardTheme.color ?? colors.surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: colors.primary.withValues(alpha: 0.2),
+                    color: colors.outlineVariant.withValues(alpha: 0.45),
                   ),
                 ),
                 child: Row(
                   children: <Widget>[
-                    Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 17,
-                      color: colors.primary,
-                    ),
+                    Icon(Icons.bolt_rounded, size: 19, color: colors.primary),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        'Smart Auto-Order • Sorted by your ERP access & frequency (${smart.totalInteractions} uses)',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
+                      child: TextField(
+                        controller: _quickTodoCtrl,
+                        onSubmitted: (_) => _addQuickHomeTodo(),
+                        style: const TextStyle(fontSize: 13),
+                        decoration: const InputDecoration(
+                          hintText: 'Add a quick task or follow-up...',
+                          isDense: true,
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
                     ),
-                    FilterChip(
-                      label: Text(
-                        smart.hideUnpermitted ? 'Permitted Only' : 'Show All',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      selected: smart.hideUnpermitted,
-                      visualDensity: VisualDensity.compact,
-                      onSelected: (bool v) => smart.setHideUnpermitted(v),
-                    ),
-                    if (smart.totalInteractions > 0)
-                      IconButton(
-                        tooltip: 'Reset Smart Order',
+                    const SizedBox(width: 6),
+                    FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
                         visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.restart_alt_rounded, size: 18),
-                        onPressed: () async {
-                          final ScaffoldMessengerState messenger =
-                              ScaffoldMessenger.of(context);
-                          await smart.resetUserStats();
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Dashboard order reset to default!',
-                              ),
-                            ),
-                          );
-                        },
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                       ),
+                      onPressed: _addingTodo ? null : _addQuickHomeTodo,
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('Add', style: TextStyle(fontSize: 12)),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
 
-              // Top Frequently Used by You Bar (appears automatically as user works)
+              // Top Frequently Used Horizontal Strip (appears automatically with usage)
               if (topUsedModules.isNotEmpty) ...<Widget>[
-                Row(
-                  children: <Widget>[
-                    Icon(
-                      Icons.local_fire_department_rounded,
-                      size: 18,
-                      color: Colors.deepOrange.shade700,
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Frequently Used by You',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Text(
-                      'Hold any card to Pin 📌',
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 14),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: topUsedModules.map((_DashboardModuleEntry m) {
-                      final int count = smart.usageCountOf(m.spec.id);
-                      final bool pinned = smart.isPinned(m.spec.id);
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ActionChip(
-                          avatar: Icon(m.icon, size: 16, color: m.color),
-                          label: Text(
-                            '${pinned ? '📌 ' : ''}${m.spec.title}${count > 0 ? ' ($count×)' : ''}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          onPressed: () {
-                            smart.recordItemTap(
-                              m.spec.id,
-                              primaryDocType: m.spec.primaryDocType,
-                            );
-                            m.onOpen();
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-
-              // Quick ToDo & Activity Dock Bar right on Home Screen
-              Card(
-                elevation: 0,
-                color: colors.secondaryContainer.withValues(alpha: 0.4),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  side: BorderSide(
-                    color: colors.primary.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Icon(
-                            Icons.bolt_rounded,
-                            size: 18,
-                            color: colors.primary,
-                          ),
-                          const SizedBox(width: 6),
-                          const Expanded(
-                            child: Text(
-                              'Quick ToDo & Activity Tracker',
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(
+                              Icons.local_fire_department_rounded,
+                              size: 16,
+                              color: Colors.deepOrange.shade700,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Frequent:',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: colors.onSurfaceVariant,
                               ),
                             ),
-                          ),
-                          TextButton.icon(
-                            style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            onPressed: () => widget.onNavigateTab(2),
-                            icon: const Icon(Icons.handshake_rounded, size: 15),
-                            label: const Text(
-                              'Frappe CRM',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: TextField(
-                              controller: _quickTodoCtrl,
-                              onSubmitted: (_) => _addQuickHomeTodo(),
-                              decoration: InputDecoration(
-                                hintText: 'Add a quick task or follow-up...',
-                                filled: true,
-                                fillColor: colors.surface,
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
+                      ...topUsedModules.map((_DashboardModuleEntry m) {
+                        final int count = smart.usageCountOf(m.spec.id);
+                        final bool pinned = smart.isPinned(m.spec.id);
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ActionChip(
+                            visualDensity: VisualDensity.compact,
+                            avatar: Icon(m.icon, size: 15, color: m.color),
+                            label: Text(
+                              '${pinned ? '📌 ' : ''}${m.spec.title}${count > 0 ? ' ($count×)' : ''}',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
+                            onPressed: () {
+                              smart.recordItemTap(
+                                m.spec.id,
+                                primaryDocType: m.spec.primaryDocType,
+                              );
+                              m.onOpen();
+                            },
                           ),
-                          const SizedBox(width: 8),
-                          FilledButton.icon(
-                            onPressed: _addingTodo ? null : _addQuickHomeTodo,
-                            icon: const Icon(Icons.add_task_rounded, size: 16),
-                            label: const Text('Add'),
-                          ),
-                        ],
-                      ),
+                        );
+                      }),
                     ],
                   ),
                 ),
-              ),
+              ],
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
+
+              // Workspace Modules Header with Integrated Smart Filter Controls
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
-                  const Text(
-                    'Regular Company Operations',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'Workspace Modules',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        Text(
+                          'Auto-sorted by your ERP access & usage • Hold card to Pin',
+                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                      ],
+                    ),
                   ),
-                  Text(
-                    '${sortedModules.length} Active Modules',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  FilterChip(
+                    label: Text(
+                      smart.hideUnpermitted ? 'Permitted' : 'All Modules',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    selected: smart.hideUnpermitted,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (bool v) => smart.setHideUnpermitted(v),
                   ),
+                  if (smart.totalInteractions > 0)
+                    IconButton(
+                      tooltip: 'Reset Smart Order',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                      onPressed: () async {
+                        final ScaffoldMessengerState messenger =
+                            ScaffoldMessenger.of(context);
+                        await smart.resetUserStats();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Dashboard order reset to default!'),
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -1373,9 +1381,9 @@ class _DashboardTabState extends State<_DashboardTab> {
                 crossAxisCount: 2,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.28,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.38,
                 children: sortedModules.asMap().entries.map((
                   MapEntry<int, _DashboardModuleEntry> entry,
                 ) {
@@ -1391,7 +1399,7 @@ class _DashboardTabState extends State<_DashboardTab> {
                   } else if (count > 0 && rankIdx == 0) {
                     topBadge = '🔥 #1 ($count×)';
                   } else if (count > 0) {
-                    topBadge = '⚡ $count×';
+                    topBadge = '$count×';
                   } else {
                     topBadge = accessBadge;
                   }
@@ -1430,31 +1438,53 @@ class _DashboardTabState extends State<_DashboardTab> {
                 }).toList(),
               ),
               const SizedBox(height: 20),
+
+              // Clean Expandable HR Operations Section
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
                   const Text(
-                    'ERPNext HR Operations (Auto-Sorted)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    'HR & Payroll Quick Tools',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                    ),
                   ),
-                  Text(
-                    '${sortedHrTools.length} Tools',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
+                  if (sortedHrTools.length > 6)
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: () {
+                        setState(() => _showAllHrTools = !_showAllHrTools);
+                      },
+                      child: Text(
+                        _showAllHrTools
+                            ? 'Show Less'
+                            : 'View All (${sortedHrTools.length})',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: sortedHrTools.map((_DashboardQuickChipEntry tool) {
+                children: visibleHrTools.map((_DashboardQuickChipEntry tool) {
                   final int count = smart.usageCountOf(tool.spec.id);
+                  final String cleanTitle = tool.spec.title.replaceFirst(
+                    RegExp(r'^\d+\.\s*'),
+                    '',
+                  );
                   return ActionChip(
-                    avatar: Icon(tool.icon, size: 16),
+                    visualDensity: VisualDensity.compact,
+                    avatar: Icon(tool.icon, size: 15, color: colors.primary),
                     label: Text(
-                      count > 0
-                          ? '${tool.spec.title} ($count×)'
-                          : tool.spec.title,
+                      count > 0 ? '$cleanTitle ($count×)' : cleanTitle,
+                      style: const TextStyle(fontSize: 12),
                     ),
                     onPressed: () {
                       smart.recordItemTap(
@@ -1467,35 +1497,51 @@ class _DashboardTabState extends State<_DashboardTab> {
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
+
+              // Clean Expandable Quick DocType Shortcuts Section
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
                   const Text(
-                    'Quick Shortcuts (Most Used DocTypes)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    'Quick DocType Shortcuts',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                    ),
                   ),
-                  Text(
-                    '${sortedShortcuts.length} DocTypes',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
+                  if (sortedShortcuts.length > 6)
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: () {
+                        setState(() => _showAllShortcuts = !_showAllShortcuts);
+                      },
+                      child: Text(
+                        _showAllShortcuts
+                            ? 'Show Less'
+                            : 'View All (${sortedShortcuts.length})',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: sortedShortcuts.asMap().entries.map((
-                  MapEntry<int, _DashboardQuickChipEntry> entry,
-                ) {
-                  final int idx = entry.key;
-                  final _DashboardQuickChipEntry sc = entry.value;
+                children: visibleShortcuts.map((_DashboardQuickChipEntry sc) {
                   final int count = smart.usageCountOf(sc.spec.id);
-                  final String rankLabel = idx < 5 ? ' (#${idx + 1})' : '';
-                  final String countLabel = count > 0 ? ' • $count×' : '';
                   return ActionChip(
-                    avatar: Icon(sc.icon, size: 16),
-                    label: Text('${sc.spec.title}$rankLabel$countLabel'),
+                    visualDensity: VisualDensity.compact,
+                    avatar: Icon(sc.icon, size: 15, color: colors.primary),
+                    label: Text(
+                      count > 0 ? '${sc.spec.title} ($count×)' : sc.spec.title,
+                      style: const TextStyle(fontSize: 12),
+                    ),
                     onPressed: () {
                       smart.recordItemTap(
                         sc.spec.id,
@@ -1538,72 +1584,87 @@ class _ModuleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: isPinned ? 0.14 : 0.08),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: color.withValues(alpha: isPinned ? 0.55 : 0.25),
-            width: isPinned ? 1.5 : 1.0,
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final Color cardBg = Theme.of(context).cardTheme.color ?? colors.surface;
+
+    return Material(
+      color: cardBg,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isPinned
+                  ? color.withValues(alpha: 0.65)
+                  : colors.outlineVariant.withValues(alpha: 0.5),
+              width: isPinned ? 1.5 : 1.0,
+            ),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                CircleAvatar(
-                  radius: 17,
-                  backgroundColor: color.withValues(alpha: 0.18),
-                  child: Icon(icon, color: color, size: 19),
-                ),
-                if (badgeText != null && badgeText!.isNotEmpty)
-                  Flexible(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        badgeText!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: color,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: color, size: 19),
+                  ),
+                  if (badgeText != null && badgeText!.isNotEmpty)
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          badgeText!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-          ],
+                ],
+              ),
+              const Spacer(),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                  letterSpacing: -0.1,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+              ),
+            ],
+          ),
         ),
       ),
     );
