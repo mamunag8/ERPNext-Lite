@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_session.dart';
+import '../services/smart_dashboard_service.dart';
 
 class ErpApiClient extends ChangeNotifier {
   ErpApiClient._internal();
@@ -3316,11 +3317,19 @@ class ErpApiClient extends ChangeNotifier {
         ...enriched,
       };
       _getMutableDemoList(doctype).insert(0, created);
+      SmartDashboardService.instance.recordDocTypeInteraction(
+        doctype,
+        isMutation: true,
+      );
       return created;
     }
     final Response<dynamic> res = await _dio.post<dynamic>(
       '/api/resource/${Uri.encodeComponent(doctype)}',
       data: enriched,
+    );
+    SmartDashboardService.instance.recordDocTypeInteraction(
+      doctype,
+      isMutation: true,
     );
     final Map<String, dynamic> body =
         (res.data as Map<String, dynamic>?) ?? <String, dynamic>{};
@@ -3339,6 +3348,10 @@ class ErpApiClient extends ChangeNotifier {
       final int idx = list.indexWhere(
         (Map<String, dynamic> e) => e['name'] == name,
       );
+      SmartDashboardService.instance.recordDocTypeInteraction(
+        doctype,
+        isMutation: true,
+      );
       if (idx >= 0) {
         list[idx] = <String, dynamic>{...list[idx], ...payload, 'name': name};
         return list[idx];
@@ -3353,6 +3366,10 @@ class ErpApiClient extends ChangeNotifier {
     final Response<dynamic> res = await _dio.put<dynamic>(
       '/api/resource/${Uri.encodeComponent(doctype)}/${Uri.encodeComponent(name)}',
       data: payload,
+    );
+    SmartDashboardService.instance.recordDocTypeInteraction(
+      doctype,
+      isMutation: true,
     );
     final Map<String, dynamic> body =
         (res.data as Map<String, dynamic>?) ?? <String, dynamic>{};

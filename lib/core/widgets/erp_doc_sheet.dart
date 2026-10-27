@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../models/user_session.dart';
 import '../network/api_client.dart';
+import '../services/smart_dashboard_service.dart';
 
 class ErpDocSheet {
   ErpDocSheet._();
@@ -136,6 +137,7 @@ class ErpDocSheet {
     if (docname.trim().isEmpty) {
       return false;
     }
+    SmartDashboardService.instance.recordDocTypeInteraction(doctype);
 
     showDialog<void>(
       context: context,

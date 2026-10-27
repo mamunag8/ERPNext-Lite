@@ -20,7 +20,7 @@ class NexErpMobileApp extends StatelessWidget {
       builder: (BuildContext context, _) {
         final bool isLoggedIn = ErpApiClient.instance.isLoggedIn;
         return MaterialApp(
-          title: 'NexERP Mobile',
+          title: 'ERPNext Lite',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             useMaterial3: true,

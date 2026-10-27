@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>NexERP Mobile</string>
+	<string>ERPNext Lite</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>NexERP Mobile</string>
+	<string>ERPNext Lite</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -27,15 +27,15 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>NexERP Mobile requires camera access for Selfie Attendance verification and capturing Expense Claim receipts or Employee Advance requisitions.</string>
+	<string>ERPNext Lite requires camera access for Selfie Attendance verification and capturing Expense Claim receipts or Employee Advance requisitions.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>NexERP Mobile requires your GPS location for Geo-fenced Employee Check-In/Check-Out and Field Attendance verification.</string>
+	<string>ERPNext Lite requires your GPS location for Geo-fenced Employee Check-In/Check-Out and Field Attendance verification.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>NexERP Mobile requires your GPS location for Geo-fenced Employee Check-In/Check-Out and Field Attendance verification.</string>
+	<string>ERPNext Lite requires your GPS location for Geo-fenced Employee Check-In/Check-Out and Field Attendance verification.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>NexERP Mobile requires photo library access to attach receipts, invoices, and requisition documents to Expense Claims and Employee Advances.</string>
+	<string>ERPNext Lite requires photo library access to attach receipts, invoices, and requisition documents to Expense Claims and Employee Advances.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>NexERP Mobile saves downloaded Salary Slips and Invoice PDFs to your device.</string>
+	<string>ERPNext Lite saves downloaded Salary Slips and Invoice PDFs to your device.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

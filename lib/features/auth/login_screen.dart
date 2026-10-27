@@ -117,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 12),
                           const Text(
-                            'NexERP Mobile',
+                            'ERPNext Lite',
                             style: TextStyle(
                               fontSize: 26,
                               fontWeight: FontWeight.w800,
