@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/user_session.dart';
 import '../../core/network/api_client.dart';
 import '../../core/services/smart_dashboard_service.dart';
+import '../../core/widgets/erpnext_logo.dart';
 import '../buying_assets/buying_assets_screen.dart';
 import '../crm/crm_screen.dart';
 import '../explorer/doctype_explorer_screen.dart';
@@ -945,52 +946,63 @@ class _DashboardTabState extends State<_DashboardTab> {
 
         return Scaffold(
           appBar: AppBar(
-            titleSpacing: 16,
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            titleSpacing: 14,
+            title: Row(
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Flexible(
-                      child: Text(
-                        session?.company ?? 'ERPNext Lite',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.2,
-                        ),
+                const ErpNextLogo(size: 32),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Flexible(
+                            child: Text(
+                              session?.company ?? 'ERPNext Lite',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.primaryContainer,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'ERPNext Lite',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: colors.onPrimaryContainer,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.primaryContainer,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'ERPNext Lite',
+                      const SizedBox(height: 1),
+                      Text(
+                        session?.serverUrl.replaceFirst(
+                              RegExp(r'^https?://'),
+                              '',
+                            ) ??
+                            '',
                         style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: colors.onPrimaryContainer,
+                          fontSize: 11,
+                          color: colors.onSurfaceVariant,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  session?.serverUrl.replaceFirst(RegExp(r'^https?://'), '') ??
-                      '',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colors.onSurfaceVariant,
+                    ],
                   ),
                 ),
               ],
